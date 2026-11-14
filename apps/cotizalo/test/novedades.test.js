@@ -339,16 +339,27 @@ test("paleta de colores: solo se elige de la lista, y un color viejo se muestra 
 test("los 20 colores vivos de la paleta se leen bien: relleno, texto encima y tono para textos", async () => {
   const { PALETA } = await import("../src/paleta.js");
   const { contraste, derivarAcento } = await import("@dualstudio/diseno/js/color.js");
-  const { CLARO, OSCURO, mezclar } = await import("@dualstudio/diseno/js/tokens.js");
+  const { CLARO, OSCURO } = await import("@dualstudio/diseno/js/tokens.js");
   assert.equal(PALETA.length, 20);
   for (const { nombre, color } of PALETA) {
     const a = derivarAcento(color);
     assert.ok(contraste(a.tinta, color) >= 4.5, `${nombre}: texto sobre el botón`);
-    for (const f of [CLARO.surface, CLARO.bg, mezclar(color, CLARO.surface, 0.89)]) {
+    assert.ok(
+      contraste(a.tinta, a.hover) >= 4.5,
+      `${nombre}: texto sobre el botón con el ratón encima`,
+    );
+    for (const f of [CLARO.surface, CLARO.bg, a.fondo]) {
       assert.ok(contraste(a.texto, f) >= 4.5, `${nombre}: texto en claro sobre ${f}`);
     }
-    for (const f of [OSCURO.surface, OSCURO.bg, mezclar(color, OSCURO.surface, 0.74)]) {
+    for (const f of [OSCURO.surface, OSCURO.bg, a.fondoOscuro]) {
       assert.ok(contraste(a.textoOscuro, f) >= 4.5, `${nombre}: texto en oscuro sobre ${f}`);
     }
+    if (!a.calido) {
+      for (const f of [CLARO.surface, CLARO.bg]) {
+        assert.ok(contraste(a.linea, f) >= 3, `${nombre}: bordes de selección sobre ${f}`);
+      }
+    }
+    // Sin ocres: los cálidos (naranja, ámbar, amarillo, lima) escriben en tinta oscura
+    if (["Naranja", "Ámbar", "Amarillo", "Lima"].includes(nombre)) assert.equal(a.texto, CLARO.ink);
   }
 });

@@ -2,7 +2,11 @@
 //   --accent       el color tal cual, para rellenos (botones, barras, gráficos)
 //   --accent-ink   el texto encima del relleno: blanco u oscuro, el que contraste más
 //   --accent-text  el mismo tono, oscurecido (o aclarado en modo oscuro) lo justo para leerse como
-//                  texto, enlace, borde de selección o foco sobre la superficie, el fondo y su tinte
+//                  texto o enlace sobre la superficie, el fondo y su tinte (tinta oscura si es cálido)
+//   --accent-line  bordes de selección: el color con el contraste mínimo de un borde (3:1)
+//   (el foco del teclado usa --accent-text, que siempre contrasta)
+//   --accent-bg    el tinte para fondos suaves
+//   --accent-hover el relleno al pasar el ratón
 // Así los colores pueden ser brillantes sin que la interfaz se vuelva ilegible.
 import { CLARO, mezclar, OSCURO } from "./tokens.js";
 
@@ -69,20 +73,38 @@ export function ajustarContraste(color, fondos, sentido, min = 4.5) {
 export const tintaSobre = (color) =>
   contraste("#ffffff", color) >= contraste(CLARO.ink, color) ? "#ffffff" : CLARO.ink;
 
+/**
+ * Los colores claros y cálidos (naranja, ámbar, amarillo, lima: tono entre 20° y 100° con texto oscuro
+ * encima) se vuelven ocre o marrón si se oscurecen. Con ellos el texto va en tinta oscura sobre un tinte
+ * más presente, y el color se queda vivo en rellenos y bordes.
+ */
+export const esCalido = (color) => {
+  const tono = aHsl(color)[0] * 360;
+  return tintaSobre(color) !== "#ffffff" && tono >= 20 && tono <= 100;
+};
+
 /** Todo lo que el sistema de diseño necesita de un color de marca. */
 export function derivarAcento(color) {
+  const calido = esCalido(color);
+  const fondo = mezclar(color, CLARO.surface, calido ? 0.7 : 0.89);
+  const fondoOscuro = mezclar(color, OSCURO.surface, 0.74);
   return {
     color,
+    calido,
     tinta: tintaSobre(color),
-    texto: ajustarContraste(
-      color,
-      [CLARO.surface, CLARO.bg, mezclar(color, CLARO.surface, 0.89)],
-      -1,
-    ),
-    textoOscuro: ajustarContraste(
-      color,
-      [OSCURO.surface, OSCURO.bg, mezclar(color, OSCURO.surface, 0.74)],
-      1,
-    ),
+    // Tinte para fondos suaves (botones secundarios, filtros elegidos, avisos)
+    fondo,
+    fondoOscuro,
+    // Texto, enlaces e íconos: el tono con contraste AA (o tinta oscura en los cálidos)
+    texto: calido ? CLARO.ink : ajustarContraste(color, [CLARO.surface, CLARO.bg, fondo], -1),
+    textoOscuro: ajustarContraste(color, [OSCURO.surface, OSCURO.bg, fondoOscuro], 1),
+    // Relleno al pasar el ratón: se aclara si el texto encima es oscuro y se oscurece si es blanco
+    // (así nunca se ensucia hacia el marrón y el texto gana contraste)
+    hover: tintaSobre(color) === "#ffffff"
+      ? mezclar(color, "#000000", 0.14)
+      : mezclar(color, "#ffffff", 0.2),
+    // Bordes de selección: el color con 3:1 (WCAG 1.4.11), así casi no cambia; en los cálidos, el color
+    // tal cual (oscurecerlo lo vuelve mostaza; lo elegido se marca además con el botón relleno)
+    linea: calido ? color : ajustarContraste(color, [CLARO.surface, CLARO.bg], -1, 3),
   };
 }
