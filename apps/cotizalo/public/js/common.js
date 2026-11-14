@@ -65,10 +65,6 @@ export function aplicarColor(color) {
     st.setProperty("--primary-ink", a.tinta);
     st.setProperty("--primary-text", a.texto);
     st.setProperty("--primary-text-oscuro", a.textoOscuro);
-    st.setProperty("--primary-line", a.linea);
-    st.setProperty("--primary-bg", a.fondo);
-    st.setProperty("--primary-bg-oscuro", a.fondoOscuro);
-    st.setProperty("--primary-hover", a.hover);
     document.querySelector("meta[name=theme-color]")?.setAttribute("content", color);
   }
 }

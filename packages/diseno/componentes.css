@@ -44,7 +44,7 @@
   font-weight: 600;
 }
 .btn-soft:hover {
-  border-color: var(--accent-line);
+  border-color: var(--accent-text);
 }
 .btn-ghost {
   background: transparent;
@@ -448,7 +448,7 @@ button.badge:hover {
 }
 .chip.on {
   background: var(--accent-bg);
-  border-color: var(--accent-line);
+  border-color: var(--accent-text);
   color: var(--accent-text);
   font-weight: 600;
 }
@@ -484,7 +484,7 @@ button.badge:hover {
 .tabs button.on,
 .tabs a.on {
   color: var(--ink);
-  border-bottom-color: var(--accent-line);
+  border-bottom-color: var(--accent-text);
   font-weight: 600;
 }
 .tabs .n {
