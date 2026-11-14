@@ -25,9 +25,20 @@ export function buildDoc({ res, negocio, paciente = {} }) {
       medico: limpio(paciente.medico),
     },
     // «Biopsia ×3»: la cantidad va en el nombre y el precio es el total de la línea (igual en pantalla, PDF, imagen y texto)
-    items: res.items.map((
-      it,
-    ) => (it.cantidad > 1 ? { ...it, nombre: `${it.nombre} ×${it.cantidad}` } : it)),
+    // Debajo de cada línea: lo que incluye (perfiles), la promoción aplicada y las indicaciones previas.
+    items: res.items.map((it) => ({
+      ...it,
+      nombre: it.cantidad > 1 ? `${it.nombre} ×${it.cantidad}` : it.nombre,
+      detalle: [
+        it.incluye?.length ? `Incluye: ${it.incluye.join(", ")}` : null,
+        it.descuento_pct
+          ? `Promoción −${it.descuento_pct} % (antes ${
+            ref((it.precio_lista_unit_cent || 0) * (it.cantidad || 1))
+          })`
+          : null,
+        it.indicaciones ? `Indicaciones: ${it.indicaciones}` : null,
+      ].filter(Boolean),
+    })),
     totalRef: res.total_ref_cent,
     totalBs: res.total_bs_cent,
     tasa: res.tasa,
@@ -71,7 +82,7 @@ export function toText(d) {
   L.push("", "EXÁMENES Y PERFILES");
   for (const it of d.items) {
     L.push(`- ${it.nombre}: ${ref(it.precio_cent)}`);
-    if (it.incluye.length) L.push(`   Incluye: ${it.incluye.join(", ")}`);
+    for (const x of it.detalle) L.push(`   ${x}`);
   }
   L.push("", `TOTAL: ${ref(d.totalRef)}`);
   if (d.tasa) L.push(`TOTAL EN BOLÍVARES: ${bs(d.totalBs)}`);
@@ -110,7 +121,7 @@ export function paperHTML(d) {
     ${
     d.items.map((it) =>
       `<tr><td><b>${esc(it.nombre)}</b>${
-        it.incluye.length ? `<span class="inc">Incluye: ${esc(it.incluye.join(", "))}</span>` : ""
+        it.detalle.map((x) => `<span class="inc">${esc(x)}</span>`).join("")
       }</td><td class="p">${ref(it.precio_cent)}</td></tr>`
     ).join("")
   }
@@ -471,9 +482,7 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   const nameW = iw - priceW - 16;
   for (const it of d.items) {
     const nl = wrap(it.nombre, 11, true, nameW);
-    const inc = it.incluye.length
-      ? wrap(`Incluye: ${it.incluye.join(", ")}`, 8.6, false, nameW)
-      : [];
+    const inc = it.detalle.flatMap((x) => wrap(x, 8.6, false, nameW));
     const h = nl.length * 14 + inc.length * 11.2 + 13;
     salto(h);
     y += 6;

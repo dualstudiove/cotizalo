@@ -17,6 +17,8 @@ export function fmtFecha(dia) {
 
 /** Fecha local (YYYY-MM-DD) de un instante ISO en el huso indicado (por defecto, Venezuela). */
 export function diaLocal(iso, timeZone = "America/Caracas") {
+  // Una fecha sola (AAAA-MM-DD) ya es local: convertirla a instante la correría un día.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return String(iso);
   try {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone,

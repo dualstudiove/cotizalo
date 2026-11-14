@@ -11,6 +11,7 @@ import { negocioPorSlug, RESERVADOS } from "./negocio.js";
 import { consultaProgramada } from "./bcv.js";
 import { registrarPublicas } from "./routes/public.js";
 import { registrarAdmin } from "./routes/admin.js";
+import { registrarPromociones } from "./routes/promociones.js";
 import { asegurarSuperDesdeSecretos, registrarSuper, superDe } from "./routes/super.js";
 import { registrarAcceso } from "./routes/acceso.js";
 import { asegurarEsquema } from "./esquema.js";
@@ -18,6 +19,7 @@ import { asegurarEsquema } from "./esquema.js";
 const router = new Router();
 registrarPublicas(router);
 registrarAdmin(router);
+registrarPromociones(router);
 registrarSuper(router);
 registrarAcceso(router);
 

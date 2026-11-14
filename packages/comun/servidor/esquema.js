@@ -35,8 +35,10 @@ export function instrucciones(sql) {
  * base: SQL del esquema base de la app (CREATE TABLE IF NOT EXISTS …).
  * testigo: una tabla del esquema base; si no existe, la base está vacía y se crea el esquema base.
  * columnas: [[tabla, columna, tipo], …] ampliaciones posteriores al esquema base.
+ * tablas:   SQL de tablas (e índices) añadidas después del esquema base, siempre con IF NOT EXISTS:
+ *           se crean también en bases que ya existían.
  */
-export function crearEsquema({ base = "", testigo = null, columnas = [] } = {}) {
+export function crearEsquema({ base = "", testigo = null, columnas = [], tablas = "" } = {}) {
   // Una revisión por base de datos (el binding D1) y por instancia del Worker.
   const revisadas = new WeakMap();
 
@@ -45,8 +47,9 @@ export function crearEsquema({ base = "", testigo = null, columnas = [] } = {}) 
       for (const sql of instrucciones(base)) await db.run(sql);
     }
     for (const sql of instrucciones(TABLAS_COMUNES)) await db.run(sql);
-    const tablas = [...new Set(columnas.map(([t]) => t))];
-    for (const tabla of tablas) {
+    for (const sql of instrucciones(tablas)) await db.run(sql);
+    const conColumnas = [...new Set(columnas.map(([t]) => t))];
+    for (const tabla of conColumnas) {
       const existentes = new Set((await db.all(`PRAGMA table_info(${tabla})`)).map((c) => c.name));
       for (const [t, col, tipo] of columnas) {
         if (t !== tabla || existentes.has(col)) continue;

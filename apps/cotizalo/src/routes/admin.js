@@ -11,13 +11,22 @@ import {
   tipoDeSesion,
   verifyPassword,
 } from "@dualstudio/comun/servidor";
-import { getConfig, invalidarNegocios, tocarPrecios } from "../negocio.js";
+import { getConfig, invalidarNegocios } from "../negocio.js";
+import { colorSeguro, esColorDePaleta, PALETA } from "../paleta.js";
+import {
+  datosExamen,
+  datosPerfil,
+  escribirExamen,
+  escribirPerfil,
+  loteExamenes,
+  lotePerfiles,
+} from "../catalogo.js";
 import { calcularDashboard, csvDashboard } from "../dashboard.js";
 import { tasaGlobal } from "../bcv.js";
 import { superDe } from "./super.js";
 import {
+  csv,
   entero,
-  esColor,
   esDia,
   hoy,
   HttpError,
@@ -163,17 +172,17 @@ export function registrarAdmin(r) {
   r.add("GET", "/api/admin/catalogo", A, async ({ negocio }) => {
     const nid = negocio.id;
     const categorias = await db.all(
-      `SELECT c.id, c.nombre, c.orden, c.activo, c.max_por_examen, (SELECT COUNT(*) FROM examenes e WHERE e.categoria_id = c.id) AS examenes
+      `SELECT c.id, c.nombre, c.orden, c.activo, c.max_por_examen, c.aviso_repetible, (SELECT COUNT(*) FROM examenes e WHERE e.categoria_id = c.id) AS examenes
          FROM categorias c WHERE c.negocio_id = ? ORDER BY c.orden, c.nombre`,
       [nid],
     );
     const examenes = await db.all(
-      `SELECT e.id, e.nombre, e.categoria_id, c.nombre AS categoria, e.precio_cent, e.descripcion, e.indicaciones, e.activo, e.actualizado_en
+      `SELECT e.id, e.nombre, e.categoria_id, c.nombre AS categoria, e.precio_cent, e.descripcion, e.indicaciones, e.activo, e.solo_en_perfil, e.actualizado_en
          FROM examenes e JOIN categorias c ON c.id = e.categoria_id WHERE e.negocio_id = ? ORDER BY e.nombre`,
       [nid],
     );
     const perfiles = await db.all(
-      "SELECT id, nombre, descripcion, precio_cent, activo, actualizado_en FROM perfiles WHERE negocio_id = ? ORDER BY nombre",
+      "SELECT id, nombre, descripcion, indicaciones, precio_cent, activo, actualizado_en FROM perfiles WHERE negocio_id = ? ORDER BY nombre",
       [nid],
     );
     const miembros = await db.all(
@@ -202,8 +211,15 @@ export function registrarAdmin(r) {
     const id = uuid();
     const orden = entero(body.orden) ?? 99;
     await db.run(
-      "INSERT INTO categorias (id, negocio_id, nombre, orden, activo, max_por_examen) VALUES (?,?,?,?,1,?)",
-      [id, negocio.id, nombre, orden, maxPorExamen(body.max_por_examen)],
+      "INSERT INTO categorias (id, negocio_id, nombre, orden, activo, max_por_examen, aviso_repetible) VALUES (?,?,?,?,1,?,?)",
+      [
+        id,
+        negocio.id,
+        nombre,
+        orden,
+        maxPorExamen(body.max_por_examen),
+        optStr(body.aviso_repetible, 200),
+      ],
     );
     return { id };
   });
@@ -220,12 +236,13 @@ export function registrarAdmin(r) {
       throw new HttpError(409, "Ya existe una categoría con ese nombre.");
     }
     await db.run(
-      "UPDATE categorias SET nombre = ?, orden = ?, activo = ?, max_por_examen = ? WHERE id = ?",
+      "UPDATE categorias SET nombre = ?, orden = ?, activo = ?, max_por_examen = ?, aviso_repetible = ? WHERE id = ?",
       [
         nombre,
         body.orden !== undefined ? entero(body.orden) ?? c.orden : c.orden,
         body.activo !== undefined ? (body.activo ? 1 : 0) : c.activo,
         body.max_por_examen !== undefined ? maxPorExamen(body.max_por_examen) : c.max_por_examen,
+        body.aviso_repetible !== undefined ? optStr(body.aviso_repetible, 200) : c.aviso_repetible,
         c.id,
       ],
     );
@@ -262,70 +279,36 @@ export function registrarAdmin(r) {
   };
 
   r.add("POST", "/api/admin/examenes", A, async ({ negocio, body }) => {
-    const nombre = str(body.nombre, 120);
-    if (!nombre) throw new HttpError(400, "El nombre es obligatorio.");
-    const precio = precioCent(body.precio_cent);
-    await validarCategoria(negocio.id, body.categoria_id);
-    if (await nombreUnico("examenes", negocio.id, nombre)) {
+    const d = datosExamen(body);
+    await validarCategoria(negocio.id, d.categoria_id);
+    if (await nombreUnico("examenes", negocio.id, d.nombre)) {
       throw new HttpError(409, "Ya existe un examen con ese nombre.");
     }
     const id = uuid();
-    const ahora = nowIso();
-    await db.tx(async (t) => {
-      await t.run(
-        `INSERT INTO examenes (id, negocio_id, categoria_id, nombre, precio_cent, descripcion, indicaciones, activo, creado_en, actualizado_en)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [
-          id,
-          negocio.id,
-          body.categoria_id,
-          nombre,
-          precio,
-          optStr(body.descripcion, 500),
-          optStr(body.indicaciones, 300),
-          body.activo === false ? 0 : 1,
-          ahora,
-          ahora,
-        ],
-      );
-      await tocarPrecios(t, negocio.id);
-    });
+    await db.tx((t) => escribirExamen(t, negocio.id, id, d, true));
     return { id };
   });
-
   r.add("PUT", "/api/admin/examenes/:id", A, async ({ negocio, params, body }) => {
     const e = await db.get("SELECT * FROM examenes WHERE id = ? AND negocio_id = ?", [
       params.id,
       negocio.id,
     ]);
     if (!e) throw new HttpError(404, "El examen no existe.");
-    const nombre = body.nombre !== undefined ? str(body.nombre, 120) : e.nombre;
-    if (!nombre) throw new HttpError(400, "El nombre es obligatorio.");
-    const precio = body.precio_cent !== undefined ? precioCent(body.precio_cent) : e.precio_cent;
-    const categoriaId = body.categoria_id !== undefined ? body.categoria_id : e.categoria_id;
-    if (body.categoria_id !== undefined) await validarCategoria(negocio.id, categoriaId);
-    if (await nombreUnico("examenes", negocio.id, nombre, e.id)) {
+    const d = datosExamen(body, e);
+    if (body.categoria_id !== undefined) await validarCategoria(negocio.id, d.categoria_id);
+    if (await nombreUnico("examenes", negocio.id, d.nombre, e.id)) {
       throw new HttpError(409, "Ya existe un examen con ese nombre.");
     }
-    await db.tx(async (t) => {
-      await t.run(
-        `UPDATE examenes SET nombre = ?, categoria_id = ?, precio_cent = ?, descripcion = ?, indicaciones = ?, activo = ?, actualizado_en = ? WHERE id = ?`,
-        [
-          nombre,
-          categoriaId,
-          precio,
-          body.descripcion !== undefined ? optStr(body.descripcion, 500) : e.descripcion,
-          body.indicaciones !== undefined ? optStr(body.indicaciones, 300) : e.indicaciones,
-          body.activo !== undefined ? (body.activo ? 1 : 0) : e.activo,
-          nowIso(),
-          e.id,
-        ],
-      );
-      if (precio !== e.precio_cent) await tocarPrecios(t, negocio.id);
-    });
+    await db.tx((t) => escribirExamen(t, negocio.id, e.id, d, false));
     return { ok: true };
   });
-
+  // Edición rápida en tabla e importación de CSV: { filas: [...], simular }
+  r.add(
+    "POST",
+    "/api/admin/examenes/lote",
+    { ...A, maxBody: 2_000_000 },
+    ({ negocio, body }) => loteExamenes(negocio.id, body.filas, { simular: !!body.simular }),
+  );
   r.add("DELETE", "/api/admin/examenes/:id", A, async ({ negocio, params }) => {
     const res = await db.run("DELETE FROM examenes WHERE id = ? AND negocio_id = ?", [
       params.id,
@@ -360,78 +343,85 @@ export function registrarAdmin(r) {
   };
 
   r.add("POST", "/api/admin/perfiles", A, async ({ negocio, body }) => {
-    const nombre = str(body.nombre, 120);
-    if (!nombre) throw new HttpError(400, "El nombre es obligatorio.");
-    const precio = precioCent(body.precio_cent);
+    const d = datosPerfil(body);
     const ids = await validarMiembros(negocio.id, body.examen_ids);
-    if (await nombreUnico("perfiles", negocio.id, nombre)) {
+    if (await nombreUnico("perfiles", negocio.id, d.nombre)) {
       throw new HttpError(409, "Ya existe un perfil con ese nombre.");
     }
     const id = uuid();
-    const ahora = nowIso();
-    await db.tx(async (t) => {
-      await t.run(
-        "INSERT INTO perfiles (id, negocio_id, nombre, descripcion, precio_cent, activo, creado_en, actualizado_en) VALUES (?,?,?,?,?,?,?,?)",
-        [
-          id,
-          negocio.id,
-          nombre,
-          optStr(body.descripcion, 500),
-          precio,
-          body.activo === false ? 0 : 1,
-          ahora,
-          ahora,
-        ],
-      );
-      for (const eid of ids) {
-        await t.run("INSERT INTO perfil_examenes (perfil_id, examen_id) VALUES (?,?)", [id, eid]);
-      }
-      await tocarPrecios(t, negocio.id);
-    });
+    await db.tx((t) => escribirPerfil(t, negocio.id, id, d, true, ids));
     return { id };
   });
-
   r.add("PUT", "/api/admin/perfiles/:id", A, async ({ negocio, params, body }) => {
     const p = await db.get("SELECT * FROM perfiles WHERE id = ? AND negocio_id = ?", [
       params.id,
       negocio.id,
     ]);
     if (!p) throw new HttpError(404, "El perfil no existe.");
-    const nombre = body.nombre !== undefined ? str(body.nombre, 120) : p.nombre;
-    if (!nombre) throw new HttpError(400, "El nombre es obligatorio.");
-    const precio = body.precio_cent !== undefined ? precioCent(body.precio_cent) : p.precio_cent;
+    const d = datosPerfil(body, p);
     const ids = body.examen_ids !== undefined
       ? await validarMiembros(negocio.id, body.examen_ids)
       : null;
-    if (await nombreUnico("perfiles", negocio.id, nombre, p.id)) {
+    if (await nombreUnico("perfiles", negocio.id, d.nombre, p.id)) {
       throw new HttpError(409, "Ya existe un perfil con ese nombre.");
     }
-    await db.tx(async (t) => {
-      await t.run(
-        "UPDATE perfiles SET nombre = ?, descripcion = ?, precio_cent = ?, activo = ?, actualizado_en = ? WHERE id = ?",
-        [
-          nombre,
-          body.descripcion !== undefined ? optStr(body.descripcion, 500) : p.descripcion,
-          precio,
-          body.activo !== undefined ? (body.activo ? 1 : 0) : p.activo,
-          nowIso(),
-          p.id,
-        ],
-      );
-      if (ids) {
-        await t.run("DELETE FROM perfil_examenes WHERE perfil_id = ?", [p.id]);
-        for (const eid of ids) {
-          await t.run("INSERT INTO perfil_examenes (perfil_id, examen_id) VALUES (?,?)", [
-            p.id,
-            eid,
-          ]);
-        }
-      }
-      if (precio !== p.precio_cent) await tocarPrecios(t, negocio.id);
-    });
+    await db.tx((t) => escribirPerfil(t, negocio.id, p.id, d, false, ids));
     return { ok: true };
   });
+  // ── Exportar a CSV (se abre en Excel; «;» como separador) ──
+  r.add("GET", "/api/admin/csv/:tipo", A, async ({ negocio, params }) => {
+    const sino = (v) => (v ? "sí" : "no");
+    const precio = (c) => (c / 100).toFixed(2).replace(".", ",");
+    let contenido;
+    if (params.tipo === "examenes") {
+      const filas = await db.all(
+        `SELECT e.*, c.nombre AS categoria FROM examenes e JOIN categorias c ON c.id = e.categoria_id
+          WHERE e.negocio_id = ? ORDER BY c.orden, c.nombre, e.nombre`,
+        [negocio.id],
+      );
+      contenido = csv(filas, [
+        { titulo: "Nombre", valor: "nombre" },
+        { titulo: "Categoría", valor: "categoria" },
+        { titulo: "Precio (REF)", valor: (f) => (f.solo_en_perfil ? "" : precio(f.precio_cent)) },
+        { titulo: "Indicaciones", valor: "indicaciones" },
+        { titulo: "Descripción", valor: "descripcion" },
+        { titulo: "Solo en perfil", valor: (f) => sino(f.solo_en_perfil) },
+        { titulo: "Activo", valor: (f) => sino(f.activo) },
+      ]);
+    } else if (params.tipo === "perfiles") {
+      const perfiles = await db.all("SELECT * FROM perfiles WHERE negocio_id = ? ORDER BY nombre", [
+        negocio.id,
+      ]);
+      const miembros = await db.all(
+        `SELECT pe.perfil_id, e.nombre FROM perfil_examenes pe JOIN examenes e ON e.id = pe.examen_id
+           JOIN perfiles p ON p.id = pe.perfil_id WHERE p.negocio_id = ? ORDER BY e.nombre`,
+        [negocio.id],
+      );
+      contenido = csv(perfiles, [
+        { titulo: "Nombre", valor: "nombre" },
+        { titulo: "Precio (REF)", valor: (f) => precio(f.precio_cent) },
+        {
+          titulo: "Exámenes (separados por |)",
+          valor: (f) =>
+            miembros.filter((m) => m.perfil_id === f.id).map((m) => m.nombre).join(" | "),
+        },
+        { titulo: "Indicaciones", valor: "indicaciones" },
+        { titulo: "Descripción", valor: "descripcion" },
+        { titulo: "Activo", valor: (f) => sino(f.activo) },
+      ]);
+    } else throw new HttpError(404, "No encontrado.");
+    return new Raw(contenido, "text/csv; charset=utf-8", {
+      "content-disposition": `attachment; filename="${negocio.slug}-${params.tipo}.csv"`,
+    });
+  });
 
+  // Importación de CSV: { filas: [{ nombre, precio_cent, examenes: [nombres], … }], simular }
+  r.add(
+    "POST",
+    "/api/admin/perfiles/lote",
+    { ...A, maxBody: 2_000_000 },
+    ({ negocio, body }) => lotePerfiles(negocio.id, body.filas, { simular: !!body.simular }),
+  );
   r.add("DELETE", "/api/admin/perfiles/:id", A, async ({ negocio, params }) => {
     const res = await db.run("DELETE FROM perfiles WHERE id = ? AND negocio_id = ?", [
       params.id,
@@ -496,7 +486,6 @@ export function registrarAdmin(r) {
           [c.despues, ahora, c.id, nid],
         );
       }
-      if (cambios.length) await tocarPrecios(t, nid);
     });
     return { afectados: cambios.length };
   });
@@ -552,6 +541,9 @@ export function registrarAdmin(r) {
     const g = await tasaGlobal();
     return {
       config: cfg,
+      // Los 20 colores que se pueden elegir y el que de verdad se ve (si el guardado es de antes de la paleta)
+      paleta: PALETA,
+      color_en_uso: colorSeguro(cfg.color_principal),
       origenes,
       tasa_auto: g
         ? {
@@ -571,8 +563,24 @@ export function registrarAdmin(r) {
       ? str(body.nombre_publico, 80)
       : cur.nombre_publico;
     if (!nombre) throw new HttpError(400, "El nombre del negocio es obligatorio.");
-    const color = body.color_principal !== undefined ? body.color_principal : cur.color_principal;
-    if (!esColor(color)) throw new HttpError(400, "El color no es válido.");
+    const color = body.color_principal !== undefined
+      ? String(body.color_principal).toLowerCase()
+      : cur.color_principal;
+    // Solo colores de la paleta (buen contraste); el guardado de antes se respeta mientras no se cambie.
+    if (color !== cur.color_principal && !esColorDePaleta(color)) {
+      throw new HttpError(400, "Elige uno de los colores de la paleta.");
+    }
+    // «Precios actualizados el …»: la pone el administrador (AAAA-MM-DD). Ya no cambia sola con cada ajuste.
+    let preciosEn = cur.precios_actualizados_en;
+    if (body.precios_actualizados_en !== undefined) {
+      if (!esDia(body.precios_actualizados_en)) {
+        throw new HttpError(400, "La fecha de los precios no es válida.");
+      }
+      if (body.precios_actualizados_en > hoy()) {
+        throw new HttpError(400, "La fecha de los precios no puede ser futura.");
+      }
+      preciosEn = body.precios_actualizados_en;
+    }
     const dias = body.dias_vigencia !== undefined ? entero(body.dias_vigencia) : cur.dias_vigencia;
     if (dias === null || dias < 1 || dias > 365) {
       throw new HttpError(400, "La vigencia debe estar entre 1 y 365 días.");
@@ -602,7 +610,7 @@ export function registrarAdmin(r) {
     }
     await db.run(
       `UPDATE configuracion_negocio SET nombre_publico = ?, logo = ?, color_principal = ?, rif = ?, telefono = ?, direccion = ?, horario = ?,
-              pie_presupuesto = ?, dias_vigencia = ?, prefijo_codigo = ?, tasa_manual = ?, usar_tasa_manual = ? WHERE negocio_id = ?`,
+              pie_presupuesto = ?, dias_vigencia = ?, prefijo_codigo = ?, tasa_manual = ?, usar_tasa_manual = ?, precios_actualizados_en = ? WHERE negocio_id = ?`,
       [
         nombre,
         body.logo !== undefined ? validarLogo(body.logo) : cur.logo,
@@ -618,6 +626,7 @@ export function registrarAdmin(r) {
         prefijo,
         tasaManual,
         usarManual,
+        preciosEn,
         negocio.id,
       ],
     );

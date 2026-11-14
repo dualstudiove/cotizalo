@@ -1,6 +1,8 @@
 // Lógica de negocio compartida: negocios (tenants), configuración, tasa y presupuestos.
 import { db, hashPassword } from "@dualstudio/comun/servidor";
 import { tasaGlobal } from "./bcv.js";
+import { COLOR_POR_DEFECTO } from "./paleta.js";
+import { aplicarPromocion, promocionesDelDia } from "./promociones.js";
 import { hoy, HttpError, nowIso, parteFecha, placeholders, sumarDias, uuid } from "./util.js";
 
 // Primeros segmentos de ruta que usa la plataforma: no pueden ser la dirección de un negocio.
@@ -94,7 +96,7 @@ export async function crearNegocio({ nombre, slug, adminEmail, adminPassword, co
     await t.run(
       `INSERT INTO configuracion_negocio (negocio_id, nombre_publico, color_principal, prefijo_codigo, dias_vigencia, precios_actualizados_en)
        VALUES (?,?,?,?,7,?)`,
-      [id, nombre, color || "#0e7c86", prefijo, ahora],
+      [id, nombre, color || COLOR_POR_DEFECTO, prefijo, ahora],
     );
     for (const [i, c] of CATEGORIAS_BASE.entries()) {
       await t.run(
@@ -117,11 +119,8 @@ export async function crearNegocio({ nombre, slug, adminEmail, adminPassword, co
   return { id, slug };
 }
 
-export const tocarPrecios = (t, negocioId) =>
-  t.run("UPDATE configuracion_negocio SET precios_actualizados_en = ? WHERE negocio_id = ?", [
-    nowIso(),
-    negocioId,
-  ]);
+// La fecha «Precios actualizados el …» ya no cambia sola con cada ajuste: la pone el administrador en
+// Configuración (más adelante, también la «actualización general de precios»).
 
 // ── Tasa BCV aplicable a un negocio ──
 export async function resolverTasa(cfg) {
@@ -203,9 +202,9 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
   return db.tx(async (t) => {
     const examenes = exIds.length
       ? await t.all(
-        `SELECT e.id, e.nombre, e.precio_cent, e.categoria_id, c.nombre AS categoria, c.max_por_examen
+        `SELECT e.id, e.nombre, e.precio_cent, e.categoria_id, e.indicaciones, c.nombre AS categoria, c.max_por_examen
              FROM examenes e JOIN categorias c ON c.id = e.categoria_id
-            WHERE e.negocio_id = ? AND e.activo = 1 AND c.activo = 1 AND e.id IN (${
+            WHERE e.negocio_id = ? AND e.activo = 1 AND c.activo = 1 AND e.solo_en_perfil = 0 AND e.id IN (${
           placeholders(exIds)
         })`,
         [negocio.id, ...exIds],
@@ -213,7 +212,7 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
       : [];
     const perfiles = pfIds.length
       ? await t.all(
-        `SELECT id, nombre, precio_cent FROM perfiles WHERE negocio_id = ? AND activo = 1 AND id IN (${
+        `SELECT id, nombre, precio_cent, indicaciones FROM perfiles WHERE negocio_id = ? AND activo = 1 AND id IN (${
           placeholders(pfIds)
         })`,
         [negocio.id, ...pfIds],
@@ -269,8 +268,19 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
       }
     }
 
-    const exMap = new Map(examenes.map((e) => [e.id, e]));
-    const pfMap = new Map(perfiles.map((p) => [p.id, p]));
+    // Promociones del día: el precio guardado es el que el paciente vio (con descuento, si había).
+    const promos = await promocionesDelDia(negocio.id, dia, t);
+    const exMap = new Map(
+      examenes.map((
+        e,
+      ) => [
+        e.id,
+        aplicarPromocion(e, { tipo: "examen", id: e.id, categoria_id: e.categoria_id }, promos),
+      ]),
+    );
+    const pfMap = new Map(
+      perfiles.map((p) => [p.id, aplicarPromocion(p, { tipo: "perfil", id: p.id }, promos)]),
+    );
     const lineas = items.map((it) => {
       if (it.tipo === "examen") {
         const e = exMap.get(it.id);
@@ -283,6 +293,9 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
           cantidad,
           precio_unit_cent: e.precio_cent,
           precio_cent: e.precio_cent * cantidad,
+          precio_lista_unit_cent: e.promo ? e.precio_lista_cent : null,
+          descuento_pct: e.promo ? e.promo.porcentaje : 0,
+          indicaciones: e.indicaciones || null,
           incluye: [],
         };
       }
@@ -295,6 +308,9 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
         cantidad: 1,
         precio_unit_cent: p.precio_cent,
         precio_cent: p.precio_cent,
+        precio_lista_unit_cent: p.promo ? p.precio_lista_cent : null,
+        descuento_pct: p.promo ? p.promo.porcentaje : 0,
+        indicaciones: p.indicaciones || null,
         incluye: miembros.filter((m) => m.perfil_id === p.id).map((m) => m.nombre),
       };
     });
@@ -349,8 +365,20 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
     );
     for (const l of lineas) {
       await t.run(
-        "INSERT INTO presupuesto_items (id, presupuesto_id, negocio_id, dia, tipo, ref_id, nombre, precio_cent, cantidad) VALUES (?,?,?,?,?,?,?,?,?)",
-        [uuid(), pid, negocio.id, dia, l.tipo, l.id, l.nombre, l.precio_cent, l.cantidad],
+        "INSERT INTO presupuesto_items (id, presupuesto_id, negocio_id, dia, tipo, ref_id, nombre, precio_cent, cantidad, precio_lista_cent, descuento_pct) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        [
+          uuid(),
+          pid,
+          negocio.id,
+          dia,
+          l.tipo,
+          l.id,
+          l.nombre,
+          l.precio_cent,
+          l.cantidad,
+          l.precio_lista_unit_cent === null ? null : l.precio_lista_unit_cent * l.cantidad,
+          l.descuento_pct,
+        ],
       );
       // Para las estadísticas, cada unidad cuenta: «Biopsia ×3» son tres exámenes pedidos.
       const filas = l.tipo === "examen"

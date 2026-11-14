@@ -188,7 +188,7 @@ export async function sembrar({ demo = false } = {}) {
         slug: "demo",
         adminEmail: "admin@demo.test",
         adminPassword: "Demo12345",
-        color: "#0e7c86",
+        color: "#0b707a",
       });
       await db.run(
         "UPDATE configuracion_negocio SET telefono = '0212-555-0101', direccion = 'Av. Principal, Edif. Salud, Planta Baja', horario = 'Lunes a viernes 7:00 am – 4:00 pm · Sábados 7:00 am – 12:00 m', pie_presupuesto = 'Presenta este presupuesto en el laboratorio. Los exámenes pueden requerir ayuno o indicaciones previas.', prefijo_codigo = 'DEM' WHERE negocio_id = ?",
