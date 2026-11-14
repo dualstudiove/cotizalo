@@ -15,9 +15,6 @@
   --accent: #3342e8;
   --accent-ink: #ffffff;
   --accent-bg: #e8eaff;
-  --accent-text: var(--accent);
-  --accent-line: var(--accent-text);
-  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000000);
   --cat-1: #cf2f6c;
   --cat-1-bg: #fde8f0;
   --cat-2: #2561d6;
@@ -54,9 +51,6 @@
     --accent: #8590ff;
     --accent-ink: #0e1015;
     --accent-bg: #242a55;
-    --accent-text: var(--accent);
-    --accent-line: var(--accent-text);
-    --accent-hover: color-mix(in srgb, var(--accent) 86%, #000000);
     --cat-1: #ff7fae;
     --cat-1-bg: #3b1d2b;
     --cat-2: #7aa8ff;
@@ -92,9 +86,6 @@
   --accent: #8590ff;
   --accent-ink: #0e1015;
   --accent-bg: #242a55;
-  --accent-text: var(--accent);
-  --accent-line: var(--accent-text);
-  --accent-hover: color-mix(in srgb, var(--accent) 86%, #000000);
   --cat-1: #ff7fae;
   --cat-1-bg: #3b1d2b;
   --cat-2: #7aa8ff;
@@ -118,30 +109,27 @@
   color-scheme: dark;
 }
 
-/* --primary → --accent. Cada negocio elige su color principal (vivo) y aplicarColor() escribe en el
-   estilo de <html> --primary y lo que sale de él con js/color.js: --primary-ink (texto sobre el relleno),
-   --primary-text (textos y enlaces con contraste AA), --primary-line (bordes y foco, 3:1) y los tintes
-   --primary-bg, y --primary-hover (el relleno al pasar el ratón); con sufijo -oscuro, los del modo oscuro. Sin color de negocio, el índigo del sistema. */
+/* --primary → --accent. Cada negocio elige su color principal y aplicarColor() lo escribe
+   como --primary en el estilo de <html>; si existe, pasa a ser el acento (en oscuro se aclara
+   para mantener el contraste). Sin color de negocio se usa el índigo del sistema. */
 :root[style*="--primary"] {
   --accent: var(--primary);
-  --accent-ink: var(--primary-ink, #ffffff);
-  --accent-bg: var(--primary-bg, color-mix(in srgb, var(--primary) 11%, var(--surface)));
-  --accent-text: var(--primary-text, var(--primary));
-  --accent-line: var(--primary-line, var(--primary));
-  --accent-hover: var(--primary-hover, var(--primary));
+  --accent-ink: #ffffff;
+  --accent-bg: color-mix(in srgb, var(--primary) 11%, var(--surface));
 }
 @media (prefers-color-scheme: dark) {
   :root[style*="--primary"]:not([data-theme="light"]) {
-    --accent-bg: var(--primary-bg-oscuro, color-mix(in srgb, var(--primary) 26%, var(--surface)));
-    --accent-text: var(--primary-text-oscuro, var(--primary));
-    --accent-line: var(--primary-text-oscuro, var(--primary));
+    --accent: color-mix(in srgb, var(--primary) 55%, #ffffff);
+    --accent-ink: var(--bg);
+    --accent-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
   }
 }
 :root[style*="--primary"][data-theme="dark"] {
-  --accent-bg: var(--primary-bg-oscuro, color-mix(in srgb, var(--primary) 26%, var(--surface)));
-  --accent-text: var(--primary-text-oscuro, var(--primary));
-  --accent-line: var(--primary-text-oscuro, var(--primary));
+  --accent: color-mix(in srgb, var(--primary) 55%, #ffffff);
+  --accent-ink: var(--bg);
+  --accent-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
 }
+
 /* Categoría de examen (en ciclo) y estados: cada clase define --c/--cbg (chips) y --sc/--sbg (estados) */
 .cat-1 {
   --c: var(--cat-1);

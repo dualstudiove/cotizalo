@@ -33,10 +33,3 @@ export function mezclar(a, b, t) {
 
 /** El tinte de un acento, igual que --accent-bg con un color de negocio: 11 % del color sobre la superficie. */
 export const tinteDe = (color) => mezclar(color, CLARO.surface, 0.89);
-
-/** Los fondos y el texto del modo oscuro (para calcular contrastes; deben coincidir con tokens.css). */
-export const OSCURO = {
-  bg: "#0e1015",
-  surface: "#161a21",
-  ink: "#eceff5",
-};

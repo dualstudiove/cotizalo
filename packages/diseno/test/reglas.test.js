@@ -146,22 +146,4 @@ test("js/tokens.js repite exactamente los tokens claros de tokens.css", async ()
     assert.match(raiz, new RegExp(`--${k}: ${v};`), `--${k}`);
   }
   assert.equal(tinteDe("#0b707a"), "#e4eff0");
-  const { OSCURO } = await import("../js/tokens.js");
-  const oscuro = sinComentarios(leer(DISENO, "tokens.css")).match(
-    /:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/,
-  )[1];
-  for (const [k, v] of Object.entries(OSCURO)) {
-    assert.match(oscuro, new RegExp(`--${k}: ${v};`), `oscuro --${k}`);
-  }
-});
-
-test("js/color.js: contraste WCAG y acento derivado", async () => {
-  const { contraste, derivarAcento } = await import("../js/color.js");
-  assert.equal(Math.round(contraste("#ffffff", "#000000")), 21);
-  const a = derivarAcento("#facc15"); // amarillo: texto oscuro encima y en los textos (nada de ocre)
-  assert.equal(a.tinta, "#14161c");
-  assert.equal(a.texto, "#14161c");
-  assert.equal(a.linea, "#facc15"); // el borde, en el amarillo tal cual
-  assert.ok(contraste(derivarAcento("#3b82f6").texto, "#ffffff") >= 4.5); // azul: su tono, oscurecido
-  assert.ok(contraste(a.textoOscuro, "#161a21") >= 4.5);
 });
