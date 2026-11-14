@@ -137,3 +137,12 @@ test("icon() devuelve un SVG accesible y vacío si el nombre no existe", () => {
   assert.match(icon("check"), /^<svg class="i"[^>]*aria-hidden="true">/);
   assert.match(icon("no-existe"), /<svg[^>]*><\/svg>/);
 });
+
+test("js/tokens.js repite exactamente los tokens claros de tokens.css", async () => {
+  const { CLARO, tinteDe } = await import("../js/tokens.js");
+  const raiz = sinComentarios(leer(DISENO, "tokens.css")).match(/^:root \{([\s\S]*?)\n\}/m)[1];
+  for (const [k, v] of Object.entries(CLARO)) {
+    assert.match(raiz, new RegExp(`--${k}: ${v};`), `--${k}`);
+  }
+  assert.equal(tinteDe("#0b707a"), "#e4eff0");
+});

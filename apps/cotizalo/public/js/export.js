@@ -1,6 +1,9 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, ref } from "./common.js";
+import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
+
+const COLOR_POR_DEFECTO = "#0b707a"; // Turquesa, el de src/paleta.js
 
 /** Arma el documento a exportar a partir de la respuesta del servidor + datos opcionales del paciente. */
 export function buildDoc({ res, negocio, paciente = {} }) {
@@ -13,7 +16,7 @@ export function buildDoc({ res, negocio, paciente = {} }) {
     horario: res.negocio.horario,
     pie: res.negocio.pie,
     logo: negocio.logo || null,
-    color: negocio.color || "#0e7c86",
+    color: negocio.color || COLOR_POR_DEFECTO,
     codigo: res.codigo,
     emision: res.dia,
     vigencia: res.vigencia_hasta,
@@ -381,13 +384,6 @@ const textW = (s, bold, size) => {
   return (w * size) / 1000;
 };
 
-function mezcla(a, b, t) {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
-  const m = (s) => Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t);
-  return `#${[16, 8, 0].map((s) => m(s).toString(16).padStart(2, "0")).join("")}`;
-}
-
 // ─────────────────────────── Motor de maquetación ───────────────────────────
 /**
  * Devuelve páginas de comandos de dibujo en unidades (pt). Origen arriba-izquierda.
@@ -395,10 +391,19 @@ function mezcla(a, b, t) {
  */
 export function layoutDoc(d, { width, margin, pageH, measure }) {
   const iw = width - margin * 2;
-  const C = { ink: "#0f2e36", muted: "#5b7580", line: "#d5e2e6", primary: d.color || "#0e7c86" };
-  C.tint = mezcla(C.primary, "#ffffff", 0.9);
-  C.promo = "#8a4600"; // ámbar oscuro: contraste AA sobre su fondo
-  C.promoBg = "#fdf0d9";
+  // Colores del sistema de diseño (modo claro: un documento impreso siempre va en claro).
+  // El texto secundario usa --ink-2 y no --ink-3: en letra pequeña --ink-3 no llega a AA sobre el tinte.
+  const primary = d.color || COLOR_POR_DEFECTO;
+  const C = {
+    ink: CLARO.ink,
+    muted: CLARO["ink-2"],
+    line: CLARO.line,
+    paper: CLARO.surface,
+    primary,
+    tint: tinteDe(primary), // = --accent-bg con el color del negocio
+    promo: CLARO.warn,
+    promoBg: CLARO["warn-bg"],
+  };
   const pages = [[]];
   let y = margin;
   const cur = () => pages[pages.length - 1];
@@ -758,7 +763,7 @@ export async function toPngBlob(d) {
   c.width = Math.round(W * S);
   c.height = Math.round(alto * S);
   const g = c.getContext("2d");
-  g.fillStyle = "#ffffff";
+  g.fillStyle = CLARO.surface;
   g.fillRect(0, 0, c.width, c.height);
   g.textBaseline = "alphabetic";
   for (const m of pages[0]) {
