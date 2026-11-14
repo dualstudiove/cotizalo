@@ -29,13 +29,16 @@ export function buildDoc({ res, negocio, paciente = {} }) {
     items: res.items.map((it) => ({
       ...it,
       nombre: it.cantidad > 1 ? `${it.nombre} ×${it.cantidad}` : it.nombre,
+      // Precio especial: se marca con su porcentaje y hasta cuándo dura, para que no se tome como el precio regular
+      promo: it.descuento_pct
+        ? {
+          pct: it.descuento_pct,
+          hasta: it.promo_hasta || null,
+          antes: (it.precio_lista_unit_cent || 0) * (it.cantidad || 1),
+        }
+        : null,
       detalle: [
         it.incluye?.length ? `Incluye: ${it.incluye.join(", ")}` : null,
-        it.descuento_pct
-          ? `Promoción −${it.descuento_pct} % (antes ${
-            ref((it.precio_lista_unit_cent || 0) * (it.cantidad || 1))
-          })`
-          : null,
         it.indicaciones ? `Indicaciones: ${it.indicaciones}` : null,
       ].filter(Boolean),
     })),
@@ -44,6 +47,13 @@ export function buildDoc({ res, negocio, paciente = {} }) {
     tasa: res.tasa,
   };
 }
+
+/** «PROMOCIÓN −25 % · HASTA EL 14/11/2026» */
+export const textoPromo = (p) =>
+  `Promoción −${p.pct} %${p.hasta ? ` · hasta el ${fmtFecha(p.hasta)}` : ""}`;
+const hayPromos = (d) => d.items.some((it) => it.promo);
+export const NOTA_PROMO =
+  "Los precios marcados como promoción son especiales y solo se respetan hasta la fecha indicada en cada uno. Después de esa fecha aplican los precios regulares, aunque el presupuesto siga vigente.";
 
 const NOTA =
   "Los precios están expresados en REF (referencial). El monto en bolívares se calcula con la tasa indicada y puede variar según la tasa vigente al momento del pago.";
@@ -81,9 +91,15 @@ export function toText(d) {
   if (pac.length) L.push("", ...pac.map(([k, v]) => `${k}: ${v}`));
   L.push("", "EXÁMENES Y PERFILES");
   for (const it of d.items) {
-    L.push(`- ${it.nombre}: ${ref(it.precio_cent)}`);
+    L.push(
+      `- ${it.nombre}: ${ref(it.precio_cent)}${
+        it.promo ? ` (precio regular: ${ref(it.promo.antes)})` : ""
+      }`,
+    );
+    if (it.promo) L.push(`   [${textoPromo(it.promo).toUpperCase()}]`);
     for (const x of it.detalle) L.push(`   ${x}`);
   }
+  if (hayPromos(d)) L.push("", `* ${NOTA_PROMO}`);
   L.push("", `TOTAL: ${ref(d.totalRef)}`);
   if (d.tasa) L.push(`TOTAL EN BOLÍVARES: ${bs(d.totalBs)}`);
   L.push(tasaTexto(d));
@@ -121,11 +137,14 @@ export function paperHTML(d) {
     ${
     d.items.map((it) =>
       `<tr><td><b>${esc(it.nombre)}</b>${
-        it.detalle.map((x) => `<span class="inc">${esc(x)}</span>`).join("")
-      }</td><td class="p">${ref(it.precio_cent)}</td></tr>`
+        it.promo ? `<span class="promo-pdf">${esc(textoPromo(it.promo))}</span>` : ""
+      }${it.detalle.map((x) => `<span class="inc">${esc(x)}</span>`).join("")}</td><td class="p">${
+        ref(it.precio_cent)
+      }${it.promo ? `<s class="antes">${ref(it.promo.antes)}</s>` : ""}</td></tr>`
     ).join("")
   }
   </tbody></table>
+  ${hayPromos(d) ? `<p class="nota-promo">${esc(NOTA_PROMO)}</p>` : ""}
   <div class="tot">
     <div class="muted small">Total en REF</div><div class="big">${ref(d.totalRef)}</div>
     ${
@@ -340,7 +359,7 @@ const WB = [
 /** Deja solo caracteres Latin-1 (los que el PDF puede mostrar con la fuente estándar). */
 function lat1(s) {
   return String(s ?? "").normalize("NFC").replace(/\s+/g, " ")
-    .replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/[–—−]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
     .replace(/…/g, "...").replace(/[•·]/g, "-")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");
 }
@@ -378,6 +397,8 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   const iw = width - margin * 2;
   const C = { ink: "#0f2e36", muted: "#5b7580", line: "#d5e2e6", primary: d.color || "#0e7c86" };
   C.tint = mezcla(C.primary, "#ffffff", 0.9);
+  C.promo = "#8a4600"; // ámbar oscuro: contraste AA sobre su fondo
+  C.promoBg = "#fdf0d9";
   const pages = [[]];
   let y = margin;
   const cur = () => pages[pages.length - 1];
@@ -389,7 +410,7 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   };
   const text = (s, x, size, { bold = false, color = C.ink, align = "l" } = {}) =>
     cur().push({ t: "text", s, x, y: y + size * 0.95, size, bold, color, align });
-  const rect = (x, yy, w, h, color) => cur().push({ t: "rect", x, y: yy, w, h, color });
+  const rect = (x, yy, w, h, color, r = 0) => cur().push({ t: "rect", x, y: yy, w, h, color, r });
   const hline = (yy, color = C.line, w = 0.6) =>
     cur().push({ t: "line", x1: margin, y1: yy, x2: width - margin, y2: yy, color, w });
   const wrap = (s, size, bold, maxW) => {
@@ -483,13 +504,44 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   for (const it of d.items) {
     const nl = wrap(it.nombre, 11, true, nameW);
     const inc = it.detalle.flatMap((x) => wrap(x, 8.6, false, nameW));
-    const h = nl.length * 14 + inc.length * 11.2 + 13;
+    const chip = it.promo ? textoPromo(it.promo).toUpperCase() : null;
+    const h = nl.length * 14 + inc.length * 11.2 + 13 + (chip ? 19 : 0);
     salto(h);
     y += 6;
-    text(ref(it.precio_cent), rx - 8, 11, { bold: true, align: "r" });
+    text(ref(it.precio_cent), rx - 8, 11, {
+      bold: true,
+      align: "r",
+      color: chip ? C.promo : C.ink,
+    });
+    if (chip) {
+      // Precio regular tachado debajo del precio de promoción
+      const antes = ref(it.promo.antes);
+      const yy = y;
+      y += 14;
+      text(antes, rx - 8, 8.6, { color: C.muted, align: "r" });
+      const wa = measure(antes, false, 8.6);
+      cur().push({
+        t: "line",
+        x1: rx - 8 - wa,
+        y1: y + 5.2,
+        x2: rx - 8,
+        y2: y + 5.2,
+        color: C.muted,
+        w: 0.7,
+      });
+      y = yy;
+    }
     for (const l of nl) {
       text(l, margin + 8, 11, { bold: true });
       y += 14;
+    }
+    if (chip) {
+      const cw = measure(chip, true, 7.4) + 14;
+      y += 2;
+      rect(margin + 8, y, cw, 13.5, C.promoBg, 6.75);
+      y += 3.3;
+      text(chip, margin + 15, 7.4, { bold: true, color: C.promo });
+      y += 13.7;
     }
     for (const l of inc) {
       text(l, margin + 8, 8.6, { color: C.muted });
@@ -497,6 +549,15 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     }
     y += 7;
     hline(y);
+  }
+
+  if (hayPromos(d)) {
+    y += 10;
+    for (const l of wrap(NOTA_PROMO, 8.4, false, iw - 16)) {
+      salto(12);
+      text(l, margin + 8, 8.4, { color: C.promo });
+      y += 11;
+    }
   }
 
   // Totales
@@ -584,7 +645,26 @@ export async function toPdfBlob(d) {
   const contenidos = pages.map((cmds) => {
     let c = "";
     for (const m of cmds) {
-      if (m.t === "rect") {
+      if (m.t === "rect" && m.r) {
+        // Rectángulo con esquinas redondeadas: cuatro curvas de Bézier (k ≈ 0,5523)
+        const r = m.r;
+        const k = r * 0.5523;
+        const x0 = m.x;
+        const x1 = m.x + m.w;
+        const y1 = H - m.y;
+        const y0 = y1 - m.h;
+        c += `${rgb(m.color)} rg ${f(x0 + r)} ${f(y0)} m ${f(x1 - r)} ${f(y0)} l ` +
+          `${f(x1 - r + k)} ${f(y0)} ${f(x1)} ${f(y0 + r - k)} ${f(x1)} ${f(y0 + r)} c ` +
+          `${f(x1)} ${f(y1 - r)} l ${f(x1)} ${f(y1 - r + k)} ${f(x1 - r + k)} ${f(y1)} ${
+            f(x1 - r)
+          } ${f(y1)} c ` +
+          `${f(x0 + r)} ${f(y1)} l ${f(x0 + r - k)} ${f(y1)} ${f(x0)} ${f(y1 - r + k)} ${f(x0)} ${
+            f(y1 - r)
+          } c ` +
+          `${f(x0)} ${f(y0 + r)} l ${f(x0)} ${f(y0 + r - k)} ${f(x0 + r - k)} ${f(y0)} ${
+            f(x0 + r)
+          } ${f(y0)} c f\n`;
+      } else if (m.t === "rect") {
         c += `${rgb(m.color)} rg ${f(m.x)} ${f(H - m.y - m.h)} ${f(m.w)} ${f(m.h)} re f\n`;
       } else if (m.t === "line") {
         c += `${rgb(m.color)} RG ${m.w} w ${f(m.x1)} ${f(H - m.y1)} m ${f(m.x2)} ${
@@ -684,7 +764,9 @@ export async function toPngBlob(d) {
   for (const m of pages[0]) {
     if (m.t === "rect") {
       g.fillStyle = m.color;
-      g.fillRect(m.x * S, m.y * S, m.w * S, m.h * S);
+      g.beginPath();
+      g.roundRect(m.x * S, m.y * S, m.w * S, m.h * S, (m.r || 0) * S);
+      g.fill();
     } else if (m.t === "line") {
       g.strokeStyle = m.color;
       g.lineWidth = m.w * S;

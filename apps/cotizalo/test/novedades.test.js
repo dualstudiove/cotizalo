@@ -163,6 +163,7 @@ test("promociones: la mayor gana, el presupuesto guarda el precio con descuento 
   });
   assert.equal(pres.json.items[0].precio_cent, Math.round(tri.precio_cent * 0.75));
   assert.equal(pres.json.items[0].descuento_pct, 25);
+  assert.equal(pres.json.items[0].promo_hasta, pub.promo.hasta); // el PDF muestra hasta cuándo dura
   assert.equal(pres.json.total_ref_cent, Math.round(tri.precio_cent * 0.75));
   // Pausada, deja de aplicarse
   await comoAdmin(`/api/admin/promociones/${b.json.id}`, {
