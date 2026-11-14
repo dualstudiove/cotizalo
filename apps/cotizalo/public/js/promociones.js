@@ -11,6 +11,7 @@ import {
   icon,
   modal,
   norm,
+  ordenable,
   ref,
   toast,
 } from "./common.js";
@@ -63,8 +64,8 @@ export async function pPromociones(page, { catalogo, recargar }) {
           p.estado === "terminada" || p.estado === "pausada" ? "off" : ""
         }"><td><b>${
           esc(p.nombre)
-        }</b></td><td class="right nowrap" data-l="Descuento:"><b>−${p.porcentaje} %</b></td>
-          <td class="nowrap" data-l="Fechas:">${
+        }</b></td><td class="right nowrap" data-l="Descuento:" data-v="${p.porcentaje}"><b>−${p.porcentaje} %</b></td>
+          <td class="nowrap" data-l="Fechas:" data-v="${p.desde} ${p.hasta}">${
           p.desde === p.hasta ? fmtFecha(p.desde) : `${fmtFecha(p.desde)} – ${fmtFecha(p.hasta)}`
         }</td><td class="small" data-l="Aplica a:">${esc(resumenItems(p.items))}</td>
           <td><span class="badge ${cls}">${txt}</span></td>
@@ -83,6 +84,7 @@ export async function pPromociones(page, { catalogo, recargar }) {
       : '<tr><td colspan="6" class="empty">Aún no hay promociones.</td></tr>'
   }
     </tbody></table></div>`;
+  ordenable($(".t", page), { clave: "promociones" });
   $("#nueva").addEventListener("click", () => formPromocion(c, d.hoy, null, recargar));
   $(".t tbody", page).addEventListener("click", async (ev) => {
     const b = ev.target.closest("button");

@@ -10,6 +10,7 @@ export { diaLocal, fmtFecha, fmtNum } from "../_ds/comun/web/formatos.js";
 export { imagenAJpeg } from "../_ds/comun/web/imagenes.js";
 export { icon } from "../_ds/diseno/js/iconos.js";
 export { conBoton, confirmar, modal, toast } from "../_ds/diseno/js/componentes.js";
+export { ordenable } from "../_ds/diseno/js/tablas.js";
 
 // ── Direcciones ──
 // BASE: ruta donde está montada la app ('/cotizalo', o '' si está en la raíz de su dominio). No se escribe a mano:

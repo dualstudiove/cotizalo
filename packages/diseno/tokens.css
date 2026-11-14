@@ -31,10 +31,10 @@
   --warn-bg: #fcefd9;
   --danger: #c0302a;
   --danger-bg: #fde9e8;
-  --scrim: rgba(20, 22, 28, .45);
-  --shadow-pop: 0 12px 32px rgba(20, 22, 28, .18);
-  --font-display: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --scrim: rgba(20, 22, 28, 0.45);
+  --shadow-pop: 0 12px 32px rgba(20, 22, 28, 0.18);
+  --font-display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -65,8 +65,8 @@
     --warn-bg: #3b2d12;
     --danger: #ff8680;
     --danger-bg: #3e1d1b;
-    --scrim: rgba(0, 0, 0, .62);
-    --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5);
+    --scrim: rgba(0, 0, 0, 0.62);
+    --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
   }
 }
@@ -98,8 +98,8 @@
   --warn-bg: #3b2d12;
   --danger: #ff8680;
   --danger-bg: #3e1d1b;
-  --scrim: rgba(0, 0, 0, .62);
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 

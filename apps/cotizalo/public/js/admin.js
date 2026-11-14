@@ -18,6 +18,7 @@ import {
   modal,
   NEGOCIO,
   norm,
+  ordenable,
   parsePrecio,
   ref,
   toast,
@@ -347,11 +348,13 @@ async function pExamenes(page) {
     const l = lista();
     $("#tb").innerHTML = l.length
       ? l.map((e) =>
-        `<tr class="${e.activo ? "" : "off"}"><td><b>${esc(e.nombre)}</b>${
-          vistaPrevia(e)
-        }</td><td><span class="tag cat-${
+        `<tr class="${e.activo ? "" : "off"}"><td data-v="${esc(e.nombre)}"><b>${
+          esc(e.nombre)
+        }</b>${vistaPrevia(e)}</td><td><span class="tag cat-${
           (Math.max(0, c.categorias.findIndex((k) => k.id === e.categoria_id)) % 5) + 1
-        }">${esc(e.categoria)}</span></td><td class="right nowrap">${precioExamen(e)}</td>
+        }">${esc(e.categoria)}</span></td><td class="right nowrap" data-v="${
+          e.solo_en_perfil ? "" : e.precio_cent
+        }">${precioExamen(e)}</td>
       <td><button class="badge ${
           e.activo ? "ok" : "off"
         }" style="cursor:pointer;border:0" data-t="${e.id}" title="Cambiar estado">${
@@ -366,6 +369,7 @@ async function pExamenes(page) {
       : `<tr><td colspan="5" class="empty">No hay exámenes con ese criterio.</td></tr>`;
   };
   pintar();
+  ordenable($(".t", page), { clave: "examenes" });
   $("#q").addEventListener("input", (ev) => {
     F.q = ev.target.value;
     pintar();
@@ -498,11 +502,15 @@ async function pPerfiles(page) {
     ${
     c.perfiles.length
       ? c.perfiles.map((p) =>
-        `<tr class="${p.activo ? "" : "off"}"><td><b>${esc(p.nombre)}</b>${
+        `<tr class="${p.activo ? "" : "off"}"><td data-v="${esc(p.nombre)}"><b>${
+          esc(p.nombre)
+        }</b>${
           vistaPrevia(p)
-        }</td><td data-l="Exámenes:">${p.examen_ids.length}</td><td class="right nowrap"><b>${
+        }</td><td data-l="Exámenes:">${p.examen_ids.length}</td><td class="right nowrap" data-v="${p.precio_cent}"><b>${
           ref(p.precio_cent)
-        }</b></td><td class="right nowrap muted" data-l="Por separado:">${ref(suma(p))}</td>
+        }</b></td><td class="right nowrap muted" data-l="Por separado:" data-v="${suma(p)}">${
+          ref(suma(p))
+        }</td>
       <td><button class="badge ${
           p.activo ? "ok" : "off"
         }" style="cursor:pointer;border:0" data-t="${p.id}">${
@@ -517,6 +525,7 @@ async function pPerfiles(page) {
       : '<tr><td colspan="6" class="empty">Aún no hay perfiles.</td></tr>'
   }
     </tbody></table></div>`;
+  ordenable($(".t", page), { clave: "perfiles" });
   $("#nuevo").addEventListener("click", () => formPerfil(c));
   $("#imp").addEventListener(
     "click",
@@ -673,7 +682,7 @@ async function pCategorias(page) {
         (c.categorias.indexOf(k) % 5) + 1
       }">${
         esc(k.nombre)
-      }</span></td><td data-l="Orden:">${k.orden}</td><td data-l="Exámenes:">${k.examenes}</td><td data-l="Mismo examen:">${
+      }</span></td><td data-l="Orden:">${k.orden}</td><td data-l="Exámenes:">${k.examenes}</td><td data-l="Mismo examen:" data-v="${k.max_por_examen}">${
         textoRepetir(k.max_por_examen)
       }</td><td><button class="badge ${
         k.activo ? "ok" : "off"
@@ -689,6 +698,7 @@ async function pCategorias(page) {
   }
     </tbody></table></div>
     <p class="muted small" style="margin-top:10px">Si ocultas una categoría, sus exámenes dejan de mostrarse a los pacientes.</p>`;
+  ordenable($(".t", page), { clave: "categorias" });
   const form = (k) => {
     const m = modal({
       titulo: k ? "Editar categoría" : "Nueva categoría",

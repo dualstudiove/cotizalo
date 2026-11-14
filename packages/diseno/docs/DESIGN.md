@@ -16,6 +16,7 @@ Estética: limpia, mobile-first, mucho aire, tarjetas blancas sobre fondo gris a
 | `componentes.css`               | Botones, formularios, tarjetas, avisos, chips, píldoras, pestañas, tablas, estado vacío, ventanas, avisos emergentes, acceso y páginas de mensaje. |
 | `js/iconos.js`                  | `icon('nombre')`: los íconos SVG de trazo.                                                                                                         |
 | `js/componentes.js`             | `toast()`, `modal()`, `confirmar()`, `conBoton()`.                                                                                                 |
+| `js/tablas.js`                  | `ordenable(tabla, { clave })`: ordena un `table.t` al pulsar sus encabezados; `data-v` fija el valor de una celda.                                 |
 | `docs/referencia-parrilla.html` | Referencia histórica de la que nació el sistema (Parrilla de Contenido). Solo como fuente visual.                                                  |
 
 Al compilar, `herramientas/construir.js` copia todo esto en `<app>/.publicar/<BASE_PATH>/_ds/diseno/`.

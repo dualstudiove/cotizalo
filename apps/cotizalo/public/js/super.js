@@ -11,6 +11,7 @@ import {
   fmtTasa,
   icon,
   modal,
+  ordenable,
   toast,
   urlCompleta,
 } from "./common.js";
@@ -143,6 +144,7 @@ async function pintar(yo) {
     await api("/api/super/logout", { method: "POST" }).catch(() => {});
     aInicio();
   });
+  ordenable($(".t"), { clave: "negocios" });
   $("#nuevo").addEventListener("click", formNegocio);
   $("#act").addEventListener("click", (ev) =>
     conBoton(ev.currentTarget, async () => {
