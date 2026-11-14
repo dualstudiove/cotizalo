@@ -1,6 +1,6 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
-import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, ref } from "./common.js";
+import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
 import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
 
 const COLOR_POR_DEFECTO = "#0b707a"; // Turquesa, el de src/paleta.js
@@ -147,7 +147,11 @@ export function paperHTML(d) {
     ).join("")
   }
   </tbody></table>
-  ${hayPromos(d) ? `<p class="nota-promo">${esc(NOTA_PROMO)}</p>` : ""}
+  ${
+    hayPromos(d)
+      ? `<div class="notice warn nota-promo">${icon("info")}<div>${esc(NOTA_PROMO)}</div></div>`
+      : ""
+  }
   <div class="tot">
     <div class="muted small">Total en REF</div><div class="big">${ref(d.totalRef)}</div>
     ${
@@ -557,12 +561,25 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   }
 
   if (hayPromos(d)) {
+    // Aviso con fondo y el ícono de información a la izquierda (como .notice del sistema de diseño)
+    const pad = 9;
+    const ico = 10;
+    const lineas = wrap(NOTA_PROMO, 8.4, false, iw - pad * 2 - ico - 8);
+    const h = lineas.length * 11 + pad * 2 - 2;
     y += 10;
-    for (const l of wrap(NOTA_PROMO, 8.4, false, iw - 16)) {
-      salto(12);
-      text(l, margin + 8, 8.4, { color: C.promo });
+    salto(h);
+    rect(margin, y, iw, h, C.promoBg, 6);
+    const cx = margin + pad + ico / 2;
+    const cy = y + pad + ico / 2;
+    cur().push({ t: "circle", cx, cy, r: ico / 2 - 0.5, color: C.promo, w: 1 });
+    cur().push({ t: "line", x1: cx, y1: cy - 0.4, x2: cx, y2: cy + 2.6, color: C.promo, w: 1.1 });
+    cur().push({ t: "circle", cx, cy: cy - 2.3, r: 0.65, color: C.promo, fill: true });
+    y += pad - 1;
+    for (const l of lineas) {
+      text(l, margin + pad + ico + 8, 8.4, { color: C.promo });
       y += 11;
     }
+    y += pad - 1;
   }
 
   // Totales
@@ -671,6 +688,19 @@ export async function toPdfBlob(d) {
           } ${f(y0)} c f\n`;
       } else if (m.t === "rect") {
         c += `${rgb(m.color)} rg ${f(m.x)} ${f(H - m.y - m.h)} ${f(m.w)} ${f(m.h)} re f\n`;
+      } else if (m.t === "circle") {
+        // Círculo con cuatro curvas de Bézier: relleno (f) o solo contorno (S)
+        const k = m.r * 0.5523;
+        const cx = m.cx;
+        const cy = H - m.cy;
+        const r = m.r;
+        c += `${rgb(m.color)} ${m.fill ? "rg" : `RG ${m.w} w`} ${f(cx + r)} ${f(cy)} m ` +
+          `${f(cx + r)} ${f(cy + k)} ${f(cx + k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} c ` +
+          `${f(cx - k)} ${f(cy + r)} ${f(cx - r)} ${f(cy + k)} ${f(cx - r)} ${f(cy)} c ` +
+          `${f(cx - r)} ${f(cy - k)} ${f(cx - k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} c ` +
+          `${f(cx + k)} ${f(cy - r)} ${f(cx + r)} ${f(cy - k)} ${f(cx + r)} ${f(cy)} c ${
+            m.fill ? "f" : "S"
+          }\n`;
       } else if (m.t === "line") {
         c += `${rgb(m.color)} RG ${m.w} w ${f(m.x1)} ${f(H - m.y1)} m ${f(m.x2)} ${
           f(H - m.y2)
@@ -772,6 +802,17 @@ export async function toPngBlob(d) {
       g.beginPath();
       g.roundRect(m.x * S, m.y * S, m.w * S, m.h * S, (m.r || 0) * S);
       g.fill();
+    } else if (m.t === "circle") {
+      g.beginPath();
+      g.arc(m.cx * S, m.cy * S, m.r * S, 0, Math.PI * 2);
+      if (m.fill) {
+        g.fillStyle = m.color;
+        g.fill();
+      } else {
+        g.strokeStyle = m.color;
+        g.lineWidth = m.w * S;
+        g.stroke();
+      }
     } else if (m.t === "line") {
       g.strokeStyle = m.color;
       g.lineWidth = m.w * S;
