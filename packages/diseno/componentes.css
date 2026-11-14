@@ -332,12 +332,19 @@ input[type="radio"] {
 .notice.bad > svg.i {
   color: var(--danger);
 }
+.notice.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.notice.info > svg.i {
+  color: var(--info);
+}
 .notice a {
   color: inherit;
   font-weight: 600;
 }
 
-/* ── Chip de categoría (.tag / .badge) y píldora de estado (.badge.ok / .off / .bad) ── */
+/* ── Chip de categoría (.tag / .badge) y píldora de estado (.badge.ok / .off / .bad / .warn / .info) ── */
 .tag,
 .badge {
   display: inline-flex;
@@ -357,7 +364,8 @@ input[type="radio"] {
 .badge.ok,
 .badge.off,
 .badge.bad,
-.badge.warn {
+.badge.warn,
+.badge.info {
   gap: 6px;
   font-size: 12px;
   letter-spacing: 0;
@@ -369,7 +377,8 @@ input[type="radio"] {
 .badge.ok::before,
 .badge.off::before,
 .badge.bad::before,
-.badge.warn::before {
+.badge.warn::before,
+.badge.info::before {
   content: "";
   width: 7px;
   height: 7px;
@@ -392,6 +401,10 @@ input[type="radio"] {
 .badge.warn {
   --sc: var(--warn);
   --sbg: var(--warn-bg);
+}
+.badge.info {
+  --sc: var(--info);
+  --sbg: var(--info-bg);
 }
 /* Estado clicable: píldora con chevron */
 button.badge {

@@ -58,6 +58,7 @@ test("los tokens existen en claro y en los dos bloques oscuros", () => {
       "--ok",
       "--warn",
       "--danger",
+      "--info",
       "--cat-1",
       "--cat-5",
     ]

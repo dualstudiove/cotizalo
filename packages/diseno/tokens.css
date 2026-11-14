@@ -1,6 +1,6 @@
 /* ═══════════ Tokens del sistema de diseño Dual Studio ═══════════
    Claro por defecto; oscuro automático (prefers-color-scheme) o manual (data-theme="dark").
-   Semánticos: --bg/--surface (fondos), --ink (texto), --line (bordes), --accent (acento), --ok/--warn/--danger (estados),
+   Semánticos: --bg/--surface (fondos), --ink (texto), --line (bordes), --accent (acento), --ok/--warn/--danger/--info (estados),
    --cat-1…5 (colores de categoría: cada app decide qué significa cada una).
    Una app cambia su personalidad redefiniendo estos tokens en su tema.css (capa app.tema), en claro Y en oscuro. */
 :root {
@@ -31,6 +31,8 @@
   --warn-bg: #fcefd9;
   --danger: #c0302a;
   --danger-bg: #fde9e8;
+  --info: #0b69a3;
+  --info-bg: #e2f0fa;
   --scrim: rgba(20, 22, 28, 0.45);
   --shadow-pop: 0 12px 32px rgba(20, 22, 28, 0.18);
   --font-display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -65,6 +67,8 @@
     --warn-bg: #3b2d12;
     --danger: #ff8680;
     --danger-bg: #3e1d1b;
+    --info: #6cb8f0;
+    --info-bg: #132a3d;
     --scrim: rgba(0, 0, 0, 0.62);
     --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
@@ -98,6 +102,8 @@
   --warn-bg: #3b2d12;
   --danger: #ff8680;
   --danger-bg: #3e1d1b;
+  --info: #6cb8f0;
+  --info-bg: #132a3d;
   --scrim: rgba(0, 0, 0, 0.62);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
