@@ -1,7 +1,7 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
-import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
+import { CLARO, mezclar, tinteDe } from "../_ds/diseno/js/tokens.js";
 
 const COLOR_POR_DEFECTO = "#0b707a"; // Turquesa, el de src/paleta.js
 
@@ -37,6 +37,7 @@ export function buildDoc({ res, negocio, paciente = {} }) {
         ? {
           pct: it.descuento_pct,
           hasta: it.promo_hasta || null,
+          nombre: it.promo_nombre || null,
           antes: (it.precio_lista_unit_cent || 0) * (it.cantidad || 1),
         }
         : null,
@@ -52,8 +53,13 @@ export function buildDoc({ res, negocio, paciente = {} }) {
 }
 
 /** «PROMOCIÓN −25 % · HASTA EL 14/11/2026» */
+/** dd/mm/aaaa → dd/mm/aa */
+const fechaCorta = (dia) => fmtFecha(dia).replace(/\/\d{2}(\d{2})$/, "/$1");
+/** «‘Semana del corazón’ −25 % · hasta el 30/11/26» (sin nombre: «Promoción −25 % · …») */
 export const textoPromo = (p) =>
-  `Promoción −${p.pct} %${p.hasta ? ` · hasta el ${fmtFecha(p.hasta)}` : ""}`;
+  `${p.nombre ? `‘${p.nombre}’` : "Promoción"} −${p.pct} %${
+    p.hasta ? ` · hasta el ${fechaCorta(p.hasta)}` : ""
+  }`;
 const hayPromos = (d) => d.items.some((it) => it.promo);
 export const NOTA_PROMO =
   "Los precios marcados como promoción son especiales y solo se respetan hasta la fecha indicada en cada uno. Después de esa fecha aplican los precios regulares, aunque el presupuesto siga vigente.";
@@ -149,7 +155,7 @@ export function paperHTML(d) {
   </tbody></table>
   ${
     hayPromos(d)
-      ? `<div class="notice warn nota-promo">${icon("info")}<div>${esc(NOTA_PROMO)}</div></div>`
+      ? `<div class="notice info nota-promo">${icon("info")}<div>${esc(NOTA_PROMO)}</div></div>`
       : ""
   }
   <div class="tot">
@@ -404,9 +410,10 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     line: CLARO.line,
     paper: CLARO.surface,
     primary,
-    tint: tinteDe(primary), // = --accent-bg con el color del negocio
-    promo: CLARO.warn,
-    promoBg: CLARO["warn-bg"],
+    tint: mezclar(tinteDe(primary), CLARO.surface, 0.25), // --accent-bg al 75 %
+    panel: CLARO.bg, // caja del paciente
+    promo: CLARO.info,
+    promoBg: CLARO["info-bg"],
   };
   const pages = [[]];
   let y = margin;
@@ -489,13 +496,37 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
 
   const pac = datosPaciente(d);
   if (pac.length) {
-    const lines = wrap(pac.map(([k, v]) => `${k}: ${v}`).join("     ·     "), 10, false, iw - 20);
-    const h = lines.length * 14 + 14;
+    // «Paciente:» en negrita y el dato normal; los pares pasan a otra línea si no caben
+    const sep = "     ·     ";
+    const filas = [[]];
+    let ancho = 0;
+    for (const [k, v] of pac) {
+      const par = [`${k}: `, v];
+      const w = measure(par[0], true, 10) + measure(v, false, 10);
+      const extra = filas.at(-1).length ? measure(sep, false, 10) : 0;
+      if (filas.at(-1).length && ancho + extra + w > iw - 20) {
+        filas.push([]);
+        ancho = 0;
+      }
+      ancho += (filas.at(-1).length ? measure(sep, false, 10) : 0) + w;
+      filas.at(-1).push(par);
+    }
+    const h = filas.length * 14 + 14;
     salto(h + 10);
-    rect(margin, y, iw, h, C.tint);
+    rect(margin, y, iw, h, C.panel, 8);
     y += 7;
-    for (const l of lines) {
-      text(l, margin + 10, 10);
+    for (const fila of filas) {
+      let x = margin + 10;
+      fila.forEach(([k, v], i) => {
+        if (i) {
+          text(sep, x, 10);
+          x += measure(sep, false, 10);
+        }
+        text(k, x, 10, { bold: true });
+        x += measure(k, true, 10);
+        text(v, x, 10);
+        x += measure(v, false, 10);
+      });
       y += 14;
     }
     y += 14;
@@ -503,7 +534,7 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
 
   // Tabla
   salto(70);
-  rect(margin, y, iw, 22, C.tint);
+  rect(margin, y, iw, 22, C.tint, 8);
   y += 6;
   text("DESCRIPCIÓN", margin + 8, 8.3, { bold: true, color: C.muted });
   text("PRECIO", rx - 8, 8.3, { bold: true, color: C.muted, align: "r" });
@@ -514,19 +545,24 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     const nl = wrap(it.nombre, 11, true, nameW);
     const inc = it.detalle.flatMap((x) => wrap(x, 8.6, false, nameW));
     const chip = it.promo ? textoPromo(it.promo).toUpperCase() : null;
-    const h = nl.length * 14 + inc.length * 11.2 + 13 + (chip ? 19 : 0);
-    salto(h);
-    y += 6;
-    text(ref(it.precio_cent), rx - 8, 11, {
-      bold: true,
-      align: "r",
-      color: chip ? C.promo : C.ink,
-    });
+    const cw = chip ? measure(chip, true, 7.4) + 14 : 0;
+    // El chip va junto al nombre si cabe en la misma línea; si no, debajo
+    const chipAlLado = chip && nl.length === 1 &&
+      measure(nl[0], true, 11) + 5 + cw <= nameW;
+    const chipAbajo = chip && !chipAlLado;
+    const altoDesc = nl.length * 14 + (chipAbajo ? 16.5 : 0) +
+      (inc.length ? 3 + inc.length * 11.2 : 0);
+    const altoPrecio = chip ? 26 : 14;
+    const alto = Math.max(altoDesc, altoPrecio);
+    salto(alto + 15);
+    y += 7;
+    const top = y;
+    // Precio (centrado en la fila): el de promoción en tinta y debajo el regular tachado
+    y = top + (alto - altoPrecio) / 2;
+    text(ref(it.precio_cent), rx - 8, 11, { bold: true, align: "r" });
     if (chip) {
-      // Precio regular tachado debajo del precio de promoción
       const antes = ref(it.promo.antes);
-      const yy = y;
-      y += 14;
+      y += 16;
       text(antes, rx - 8, 8.6, { color: C.muted, align: "r" });
       const wa = measure(antes, false, 8.6);
       cur().push({
@@ -538,25 +574,31 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
         color: C.muted,
         w: 0.7,
       });
-      y = yy;
     }
+    // Descripción (centrada en la fila)
+    y = top + (alto - altoDesc) / 2;
+    const pintarChip = (x, yy) => {
+      rect(x, yy, cw, 13.5, C.promoBg, 6.75);
+      const y0 = y;
+      y = yy + 3.3;
+      text(chip, x + 7, 7.4, { bold: true, color: C.promo });
+      y = y0;
+    };
     for (const l of nl) {
       text(l, margin + 8, 11, { bold: true });
+      if (chipAlLado) pintarChip(margin + 8 + measure(l, true, 11) + 5, y + 0.4);
       y += 14;
     }
-    if (chip) {
-      const cw = measure(chip, true, 7.4) + 14;
-      y += 2;
-      rect(margin + 8, y, cw, 13.5, C.promoBg, 6.75);
-      y += 3.3;
-      text(chip, margin + 15, 7.4, { bold: true, color: C.promo });
-      y += 13.7;
+    if (chipAbajo) {
+      pintarChip(margin + 8, y + 3);
+      y += 16.5;
     }
+    if (inc.length) y += 3;
     for (const l of inc) {
       text(l, margin + 8, 8.6, { color: C.muted });
       y += 11.2;
     }
-    y += 7;
+    y = top + alto + 8;
     hline(y);
   }
 
@@ -586,18 +628,18 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   const bw = 262;
   const bx = rx - bw;
   const tasaLines = wrap(tasaTexto(d), 8.4, false, bw - 20);
-  const bh = 16 + 30 + (d.tasa ? 30 : 18) + tasaLines.length * 11 + 8;
-  y += 14;
+  const bh = 10 + 25 + (d.tasa ? 25 : 0) + tasaLines.length * 11 + 12;
+  y += hayPromos(d) ? 32 : 18;
   salto(bh + 70);
-  rect(bx, y, bw, bh, C.tint);
+  rect(bx, y, bw, bh, C.tint, 8);
   y += 10;
   text("Total en REF", bx + 10, 9.5, { color: C.muted });
   text(ref(d.totalRef), rx - 10, 15, { bold: true, align: "r" });
-  y += 30;
+  y += 25;
   if (d.tasa) {
     text("Total en bolívares", bx + 10, 9.5, { color: C.muted });
     text(bs(d.totalBs), rx - 10, 15, { bold: true, align: "r" });
-    y += 30;
+    y += 25;
   } else y += 4;
   for (const l of tasaLines) {
     text(l, bx + 10, 8.4, { color: C.muted });

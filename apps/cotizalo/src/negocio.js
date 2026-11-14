@@ -296,6 +296,7 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
           precio_lista_unit_cent: e.promo ? e.precio_lista_cent : null,
           descuento_pct: e.promo ? e.promo.porcentaje : 0,
           promo_hasta: e.promo ? e.promo.hasta : null,
+          promo_nombre: e.promo ? e.promo.nombre : null,
           indicaciones: e.indicaciones || null,
           incluye: [],
         };
@@ -312,6 +313,7 @@ async function crearPresupuestoUnaVez(negocio, input, opts = {}) {
         precio_lista_unit_cent: p.promo ? p.precio_lista_cent : null,
         descuento_pct: p.promo ? p.promo.porcentaje : 0,
         promo_hasta: p.promo ? p.promo.hasta : null,
+        promo_nombre: p.promo ? p.promo.nombre : null,
         indicaciones: p.indicaciones || null,
         incluye: miembros.filter((m) => m.perfil_id === p.id).map((m) => m.nombre),
       };

@@ -19,8 +19,8 @@ export const CLARO = {
   "warn-bg": "#fcefd9",
   danger: "#c0302a",
   "danger-bg": "#fde9e8",
-  info: "#0b69a3",
-  "info-bg": "#e2f0fa",
+  info: "#0061a6",
+  "info-bg": "#e2effa",
 };
 
 /** Mezcla dos colores #rrggbb: `t` es la parte de `b` (0 → a, 1 → b). */

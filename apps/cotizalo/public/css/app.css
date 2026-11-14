@@ -763,12 +763,13 @@
     margin-top: 2px;
   }
   .paper .promo-pdf {
-    display: table;
-    margin-top: 4px;
+    display: inline-block;
+    vertical-align: 1px;
+    margin-left: 6px;
     padding: 1px 8px;
     border-radius: 999px;
-    background: var(--warn-bg);
-    color: var(--warn);
+    background: var(--info-bg);
+    color: var(--info);
     font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
