@@ -37,7 +37,7 @@ p {
   margin: 0 0 0.6em;
 }
 a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 button,
 input,
@@ -80,7 +80,7 @@ textarea {
   font-weight: 600;
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 svg.i {

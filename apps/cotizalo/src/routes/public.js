@@ -3,7 +3,7 @@ import { cuotaDiaria, db, limite } from "@dualstudio/comun/servidor";
 import { refrescarSiHaceFalta, tasaGlobal } from "../bcv.js";
 import { crearPresupuesto, esOrigenOtro, getConfig, resolverTasa } from "../negocio.js";
 import { hoy, HttpError, nowIso, parteFecha, uuid } from "../util.js";
-import { colorSeguro } from "../paleta.js";
+import { colorSeguro, temaDe } from "../paleta.js";
 import { aplicarPromocion, promocionesDelDia } from "../promociones.js";
 
 // Topes diarios por negocio, guardados en la base (valen para todas las instancias del Worker). Frenan un abuso
@@ -29,6 +29,7 @@ export function registrarPublicas(r) {
         logo: cfg.logo,
         // Siempre un color de la paleta (con buen contraste), aunque el guardado sea de antes
         color: colorSeguro(cfg.color_principal),
+        tema: temaDe(cfg.color_principal),
         telefono: cfg.telefono,
         direccion: cfg.direccion,
         horario: cfg.horario,

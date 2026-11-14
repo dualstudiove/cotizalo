@@ -67,7 +67,7 @@ Hay dos detalles a tener en cuenta:
 
 - Superficies: `--bg` (página), `--surface` (tarjetas), `--surface-2` (campos, cajas suaves). Bordes: `--line`, `--line-2`.
 - Texto: `--ink` (principal), `--ink-2` (secundario), `--ink-3` (apagado).
-- Acento: `--accent` + `--accent-ink` (texto sobre acento) + `--accent-bg` (fondo suave).
+- Acento: `--accent` (rellenos) + `--accent-ink` (texto sobre acento) + `--accent-bg` (fondo suave) + `--accent-text` (títulos, líneas, íconos, enlaces y foco; por defecto, el mismo `--accent`).
   - **Acento por marca:** si una app escribe `--primary` en el `style` de `<html>` (p. ej. el color de cada negocio en Cotízalo), el padre lo convierte en acento y lo aclara en oscuro para mantener el contraste.
 - Estados: `--ok`, `--warn`, `--danger`, `--info`, cada uno con su `-bg`. `--info` es para avisos neutros que no son del acento (novedades, datos, ayuda).
 - Categorías: `--cat-1…5`, cada una con `-bg`. Cada app decide qué significan (tipos de examen en Cotízalo, una app por color en la central). Las clases `.cat-1…5` ponen `--c`/`--cbg` para chips e íconos.
@@ -77,7 +77,7 @@ Hay dos detalles a tener en cuenta:
 - Radios: tarjetas 12px, botones y campos 8px, filas 10px, chips 6px, píldoras 999px.
 - Tarjeta: `--surface`, borde 1px `--line`, padding 16-18px, sin sombra.
 - Gutter lateral mínimo 16px; `gap` en flex/grid, no márgenes.
-- Foco visible: `outline: 2px solid var(--accent); outline-offset: 2px`.
+- Foco visible: `outline: 2px solid var(--accent-text); outline-offset: 2px`.
 - Móvil primero: todo apila a una columna bajo ~720px; nada con scroll horizontal.
 
 ## Componentes (ver el catálogo)

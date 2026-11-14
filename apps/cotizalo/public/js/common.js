@@ -54,10 +54,19 @@ export function parsePrecio(txt) {
 }
 export const centAInput = (c) => (c / 100).toFixed(2).replace(".", ",");
 
-/** El color principal del negocio pasa a ser el acento (el sistema de diseño lo lee de --primary). */
-export function aplicarColor(color) {
+/**
+ * El color principal del negocio pasa a ser el acento (el sistema de diseño lo lee de --primary). `tema` trae
+ * los tonos de la paleta: el fondo suave, el texto sobre el relleno y el tono de títulos, líneas e íconos.
+ */
+export function aplicarColor(color, tema) {
   if (/^#[0-9a-f]{6}$/i.test(color || "")) {
-    document.documentElement.style.setProperty("--primary", color);
+    const st = document.documentElement.style;
+    st.setProperty("--primary", color);
+    if (tema) {
+      st.setProperty("--primary-bg", tema.claro);
+      st.setProperty("--primary-ink", tema.tinta);
+      st.setProperty("--primary-text", tema.acento);
+    }
     document.querySelector("meta[name=theme-color]")?.setAttribute("content", color);
   }
 }
