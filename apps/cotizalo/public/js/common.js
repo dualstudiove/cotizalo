@@ -10,7 +10,6 @@ export { diaLocal, fmtFecha, fmtNum } from "../_ds/comun/web/formatos.js";
 export { imagenAJpeg } from "../_ds/comun/web/imagenes.js";
 export { icon } from "../_ds/diseno/js/iconos.js";
 export { conBoton, confirmar, modal, toast } from "../_ds/diseno/js/componentes.js";
-import { derivarAcento } from "../_ds/diseno/js/color.js";
 export { ordenable } from "../_ds/diseno/js/tablas.js";
 
 // ── Direcciones ──
@@ -58,13 +57,7 @@ export const centAInput = (c) => (c / 100).toFixed(2).replace(".", ",");
 /** El color principal del negocio pasa a ser el acento (el sistema de diseño lo lee de --primary). */
 export function aplicarColor(color) {
   if (/^#[0-9a-f]{6}$/i.test(color || "")) {
-    // El color tal cual para rellenos, y lo que sale de él para que todo se lea bien (ver js/color.js)
-    const a = derivarAcento(color);
-    const st = document.documentElement.style;
-    st.setProperty("--primary", color);
-    st.setProperty("--primary-ink", a.tinta);
-    st.setProperty("--primary-text", a.texto);
-    st.setProperty("--primary-text-oscuro", a.textoOscuro);
+    document.documentElement.style.setProperty("--primary", color);
     document.querySelector("meta[name=theme-color]")?.setAttribute("content", color);
   }
 }

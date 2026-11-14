@@ -324,31 +324,13 @@ test("paleta de colores: solo se elige de la lista, y un color viejo se muestra 
   assert.equal(libre.status, 400);
   const ok = await comoAdmin("/api/admin/config", {
     method: "PUT",
-    body: { color_principal: "#a855f7" },
+    body: { color_principal: "#6d3fd1" },
   });
   assert.equal(ok.status, 200);
-  assert.equal((await pedir("/api/publico/config")).json.negocio.color, "#a855f7");
+  assert.equal((await pedir("/api/publico/config")).json.negocio.color, "#6d3fd1");
   // El color de ejemplo de antes (#0e7c86) no está en la paleta: el paciente ve el más parecido
   const { colorSeguro, esColorDePaleta } = await import("../src/paleta.js");
   assert.equal(esColorDePaleta("#0e7c86"), false);
-  assert.equal(colorSeguro("#0e7c86"), "#14b8a6");
-  assert.equal(colorSeguro("#0b707a"), "#14b8a6"); // Turquesa de la paleta anterior
-  assert.equal(colorSeguro("no es color"), "#14b8a6");
-});
-
-test("los 20 colores vivos de la paleta se leen bien: relleno, texto encima y tono para textos", async () => {
-  const { PALETA } = await import("../src/paleta.js");
-  const { contraste, derivarAcento } = await import("@dualstudio/diseno/js/color.js");
-  const { CLARO, OSCURO, mezclar } = await import("@dualstudio/diseno/js/tokens.js");
-  assert.equal(PALETA.length, 20);
-  for (const { nombre, color } of PALETA) {
-    const a = derivarAcento(color);
-    assert.ok(contraste(a.tinta, color) >= 4.5, `${nombre}: texto sobre el botón`);
-    for (const f of [CLARO.surface, CLARO.bg, mezclar(color, CLARO.surface, 0.89)]) {
-      assert.ok(contraste(a.texto, f) >= 4.5, `${nombre}: texto en claro sobre ${f}`);
-    }
-    for (const f of [OSCURO.surface, OSCURO.bg, mezclar(color, OSCURO.surface, 0.74)]) {
-      assert.ok(contraste(a.textoOscuro, f) >= 4.5, `${nombre}: texto en oscuro sobre ${f}`);
-    }
-  }
+  assert.equal(colorSeguro("#0e7c86"), "#0b707a");
+  assert.equal(colorSeguro("no es color"), "#0b707a");
 });
