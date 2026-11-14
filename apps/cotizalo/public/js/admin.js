@@ -698,7 +698,6 @@ async function pCategorias(page) {
   }
     </tbody></table></div>
     <p class="muted small" style="margin-top:10px">Si ocultas una categoría, sus exámenes dejan de mostrarse a los pacientes.</p>`;
-  ordenable($(".t", page), { clave: "categorias" });
   const form = (k) => {
     const m = modal({
       titulo: k ? "Editar categoría" : "Nueva categoría",
