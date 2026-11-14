@@ -1,7 +1,7 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
-import { CLARO, mezclar, tinteDe } from "../_ds/diseno/js/tokens.js";
+import { CLARO } from "../_ds/diseno/js/tokens.js";
 
 const COLOR_POR_DEFECTO = "#0b707a"; // Turquesa, el de src/paleta.js
 
@@ -55,11 +55,9 @@ export function buildDoc({ res, negocio, paciente = {} }) {
 /** «PROMOCIÓN −25 % · HASTA EL 14/11/2026» */
 /** dd/mm/aaaa → dd/mm/aa */
 const fechaCorta = (dia) => fmtFecha(dia).replace(/\/\d{2}(\d{2})$/, "/$1");
-/** «‘Semana del corazón’ −25 % · hasta el 30/11/26» (sin nombre: «Promoción −25 % · …») */
+/** «Semana del corazón −25 % · hasta el 30/11/26» (sin nombre: «Promoción −25 % · …») */
 export const textoPromo = (p) =>
-  `${p.nombre ? `‘${p.nombre}’` : "Promoción"} −${p.pct} %${
-    p.hasta ? ` · hasta el ${fechaCorta(p.hasta)}` : ""
-  }`;
+  `${p.nombre || "Promoción"} −${p.pct} %${p.hasta ? ` · hasta el ${fechaCorta(p.hasta)}` : ""}`;
 const hayPromos = (d) => d.items.some((it) => it.promo);
 export const NOTA_PROMO =
   "Los precios marcados como promoción son especiales y solo se respetan hasta la fecha indicada en cada uno. Después de esa fecha aplican los precios regulares, aunque el presupuesto siga vigente.";
@@ -408,9 +406,9 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     ink: CLARO.ink,
     muted: CLARO["ink-2"],
     line: CLARO.line,
+    lineSoft: CLARO["line-2"],
     paper: CLARO.surface,
     primary,
-    tint: mezclar(tinteDe(primary), CLARO.surface, 0.25), // --accent-bg al 75 %
     panel: CLARO.bg, // caja del paciente
     promo: CLARO.info,
     promoBg: CLARO["info-bg"],
@@ -460,9 +458,10 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   const logo = d._logo;
   const logoH = 44;
   const logoW = logo ? Math.min(90, (logo.w / logo.h) * logoH) : 0;
-  text("PRESUPUESTO", rx, 8.5, { bold: true, color: C.primary, align: "r" });
+  // Como la vista previa de la app: «PRESUPUESTO» apagado y el código en el color del negocio
+  text("PRESUPUESTO", rx, 8, { bold: true, color: C.muted, align: "r" });
   y = top + 12;
-  text(d.codigo, rx, 15, { bold: true, align: "r" });
+  text(d.codigo, rx, 15, { bold: true, color: C.primary, align: "r" });
   y = top;
   let x0 = margin;
   if (logo) {
@@ -480,19 +479,28 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
       y += 11.5;
     }
   }
-  y = Math.max(y, top + logoH) + 8;
-  rect(margin, y, iw, 2.4, C.primary);
-  y += 14;
+  y = Math.max(y, top + logoH) + 10;
+  rect(margin, y, iw, 1.6, C.primary);
+  y += 12;
 
-  text(
-    `Emisión: ${fmtFecha(d.emision)}     ·     Válido hasta: ${fmtFecha(d.vigencia)}${
-      d.precios ? `     ·     Precios actualizados el ${fmtFecha(d.precios)}` : ""
-    }`,
-    margin,
-    8.8,
-    { color: C.muted },
-  );
-  y += 20;
+  // Fechas: etiqueta apagada y valor en negrita, una tras otra
+  {
+    let x = margin;
+    const fechas = [["Emisión: ", d.emision], ["Válido hasta: ", d.vigencia]];
+    if (d.precios) fechas.push(["Precios actualizados: ", d.precios]);
+    for (const [k, v] of fechas) {
+      const val = fmtFecha(v);
+      if (x > margin && x + measure(k + val, true, 9) > rx) {
+        x = margin;
+        y += 13;
+      }
+      text(k, x, 9, { color: C.muted });
+      x += measure(k, false, 9);
+      text(val, x, 9, { bold: true });
+      x += measure(val, true, 9) + 14;
+    }
+    y += 22;
+  }
 
   const pac = datosPaciente(d);
   if (pac.length) {
@@ -534,11 +542,11 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
 
   // Tabla
   salto(70);
-  rect(margin, y, iw, 22, C.tint, 8);
-  y += 6;
-  text("DESCRIPCIÓN", margin + 8, 8.3, { bold: true, color: C.muted });
-  text("PRECIO", rx - 8, 8.3, { bold: true, color: C.muted, align: "r" });
-  y += 16;
+  y += 2;
+  text("DESCRIPCIÓN", margin, 8, { bold: true, color: C.muted });
+  text("PRECIO", rx, 8, { bold: true, color: C.muted, align: "r" });
+  y += 14;
+  hline(y, C.line, 0.8);
   const priceW = 100;
   const nameW = iw - priceW - 16;
   for (const it of d.items) {
@@ -559,23 +567,23 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     const top = y;
     // Precio (centrado en la fila): el de promoción en tinta y debajo el regular tachado
     y = top + (alto - altoPrecio) / 2;
-    text(ref(it.precio_cent), rx - 8, 11, { bold: true, align: "r" });
+    text(ref(it.precio_cent), rx, 11, { bold: true, align: "r" });
     if (chip) {
       const antes = ref(it.promo.antes);
       y += 16;
-      text(antes, rx - 8, 8.6, { color: C.muted, align: "r" });
+      text(antes, rx, 8.6, { color: C.muted, align: "r" });
       const wa = measure(antes, false, 8.6);
       cur().push({
         t: "line",
-        x1: rx - 8 - wa,
+        x1: rx - wa,
         y1: y + 5.2,
-        x2: rx - 8,
+        x2: rx,
         y2: y + 5.2,
         color: C.muted,
         w: 0.7,
       });
     }
-    // Descripción (centrada en la fila)
+    // Descripción a la izquierda, centrada en vertical en la fila
     y = top + (alto - altoDesc) / 2;
     const pintarChip = (x, yy) => {
       rect(x, yy, cw, 13.5, C.promoBg, 6.75);
@@ -585,21 +593,21 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
       y = y0;
     };
     for (const l of nl) {
-      text(l, margin + 8, 11, { bold: true });
-      if (chipAlLado) pintarChip(margin + 8 + measure(l, true, 11) + 5, y + 0.4);
+      text(l, margin, 11, { bold: true });
+      if (chipAlLado) pintarChip(margin + measure(l, true, 11) + 5, y + 0.4);
       y += 14;
     }
     if (chipAbajo) {
-      pintarChip(margin + 8, y + 3);
+      pintarChip(margin, y + 3);
       y += 16.5;
     }
     if (inc.length) y += 3;
     for (const l of inc) {
-      text(l, margin + 8, 8.6, { color: C.muted });
+      text(l, margin, 8.6, { color: C.muted });
       y += 11.2;
     }
     y = top + alto + 8;
-    hline(y);
+    hline(y, C.lineSoft, 0.8);
   }
 
   if (hayPromos(d)) {
@@ -624,28 +632,28 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     y += pad - 1;
   }
 
-  // Totales
-  const bw = 262;
-  const bx = rx - bw;
-  const tasaLines = wrap(tasaTexto(d), 8.4, false, bw - 20);
-  const bh = 10 + 25 + (d.tasa ? 25 : 0) + tasaLines.length * 11 + 12;
-  y += hayPromos(d) ? 32 : 18;
-  salto(bh + 70);
-  rect(bx, y, bw, bh, C.tint, 8);
-  y += 10;
-  text("Total en REF", bx + 10, 9.5, { color: C.muted });
-  text(ref(d.totalRef), rx - 10, 15, { bold: true, align: "r" });
-  y += 25;
+  // Totales: alineados a la derecha, sin caja (como la vista previa)
+  const tasaLines = wrap(tasaTexto(d), 8.4, false, 300);
+  const th = 13 + 24 + (d.tasa ? 13 + 24 + 6 : 0) + tasaLines.length * 11;
+  y += hayPromos(d) ? 16 : 14;
+  salto(th + 60);
+  text("Total en REF", rx, 9, { color: C.muted, align: "r" });
+  y += 13;
+  text(ref(d.totalRef), rx, 18, { bold: true, align: "r" });
+  y += 24;
   if (d.tasa) {
-    text("Total en bolívares", bx + 10, 9.5, { color: C.muted });
-    text(bs(d.totalBs), rx - 10, 15, { bold: true, align: "r" });
-    y += 25;
-  } else y += 4;
+    y += 6;
+    text("Total en bolívares", rx, 9, { color: C.muted, align: "r" });
+    y += 13;
+    text(bs(d.totalBs), rx, 18, { bold: true, align: "r" });
+    y += 24;
+  }
+  y += 2;
   for (const l of tasaLines) {
-    text(l, bx + 10, 8.4, { color: C.muted });
+    text(l, rx, 8.4, { color: C.muted, align: "r" });
     y += 11;
   }
-  y += 22;
+  y += 16;
 
   if (d.pie) {
     for (const l of wrap(d.pie, 9.2, false, iw)) {
