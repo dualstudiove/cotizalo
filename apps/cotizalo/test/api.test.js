@@ -288,7 +288,7 @@ test("bloqueo tras 5 intentos fallidos", async () => {
   );
 });
 
-test("CRUD de exámenes: nombre único, precio y fecha de actualización de precios", async () => {
+test("CRUD de exámenes: nombre único, precio y fecha de precios puesta a mano", async () => {
   const antes = (await demo({ path: "/api/publico/config" })).json.precios_actualizados_en;
   const cat = (await demo({ path: "/api/admin/catalogo", jar: "admin-demo" })).json;
   const hema = cat.categorias.find((c) => c.nombre === "Hematología");
@@ -307,17 +307,32 @@ test("CRUD de exámenes: nombre único, precio y fecha de actualización de prec
     body: { nombre: "Examen de prueba", categoria_id: hema.id, precio_cent: 1234 },
   });
   assert.equal(nuevo.status, 200);
-  const despues = (await demo({ path: "/api/publico/config" })).json.precios_actualizados_en;
-  assert.ok(despues > antes, "crear un examen actualiza la fecha de precios");
-  // editar solo la descripción NO cambia la fecha de precios
-  await new Promise((r) => setTimeout(r, 15));
+  // La fecha «Precios actualizados el …» ya no cambia sola: crear o cambiar precios no la mueve…
   await demo({
     method: "PUT",
     path: `/api/admin/examenes/${nuevo.json.id}`,
     jar: "admin-demo",
-    body: { descripcion: "Texto" },
+    body: { precio_cent: 999 },
   });
-  assert.equal((await demo({ path: "/api/publico/config" })).json.precios_actualizados_en, despues);
+  assert.equal((await demo({ path: "/api/publico/config" })).json.precios_actualizados_en, antes);
+  // …la pone el administrador en Configuración (no puede ser futura).
+  const futura = await demo({
+    method: "PUT",
+    path: "/api/admin/config",
+    jar: "admin-demo",
+    body: { precios_actualizados_en: "2999-01-01" },
+  });
+  assert.equal(futura.status, 400);
+  await demo({
+    method: "PUT",
+    path: "/api/admin/config",
+    jar: "admin-demo",
+    body: { precios_actualizados_en: "2026-01-15" },
+  });
+  assert.equal(
+    (await demo({ path: "/api/publico/config" })).json.precios_actualizados_en,
+    "2026-01-15",
+  );
   const mal = await demo({
     method: "PUT",
     path: `/api/admin/examenes/${nuevo.json.id}`,

@@ -5,6 +5,7 @@
 // Solo columnas NUEVAS y opcionales. El esquema base sigue en migrations/0001_schema.sql; aquí van las ampliaciones.
 import { crearEsquema } from "@dualstudio/comun/servidor";
 import { ESQUEMA_BASE } from "./esquema-base.js";
+import { TABLAS_PROMOCIONES } from "./promociones.js";
 
 export const COLUMNAS = [
   // RIF del negocio (aparece en el presupuesto)
@@ -20,10 +21,21 @@ export const COLUMNAS = [
   // Versión de sesión: al subirla («Cerrar sesión en los demás dispositivos») las cookies anteriores dejan de valer
   ["superadmins", "sesion_version", "INTEGER NOT NULL DEFAULT 0"],
   ["usuarios_admin", "sesion_version", "INTEGER NOT NULL DEFAULT 0"],
+  // Indicaciones previas de un perfil (como las de un examen)
+  ["perfiles", "indicaciones", "TEXT"],
+  // Examen que solo existe dentro de un perfil: el paciente no lo ve suelto y no tiene precio propio
+  ["examenes", "solo_en_perfil", "INTEGER NOT NULL DEFAULT 0"],
+  // Aviso propio para el paciente en las categorías con exámenes repetibles (si no, uno general)
+  ["categorias", "aviso_repetible", "TEXT"],
+  // Promoción aplicada a una línea del presupuesto: precio de lista (sin descuento) y porcentaje
+  ["presupuesto_items", "precio_lista_cent", "INTEGER"],
+  ["presupuesto_items", "descuento_pct", "INTEGER NOT NULL DEFAULT 0"],
 ];
 
 export const asegurarEsquema = crearEsquema({
   base: ESQUEMA_BASE,
   testigo: "negocios",
   columnas: COLUMNAS,
+  // Tablas añadidas después del esquema base (se crean también en bases que ya existían)
+  tablas: TABLAS_PROMOCIONES,
 });

@@ -16,6 +16,7 @@ Estética: limpia, mobile-first, mucho aire, tarjetas blancas sobre fondo gris a
 | `componentes.css`               | Botones, formularios, tarjetas, avisos, chips, píldoras, pestañas, tablas, estado vacío, ventanas, avisos emergentes, acceso y páginas de mensaje. |
 | `js/iconos.js`                  | `icon('nombre')`: los íconos SVG de trazo.                                                                                                         |
 | `js/componentes.js`             | `toast()`, `modal()`, `confirmar()`, `conBoton()`.                                                                                                 |
+| `js/tablas.js`                  | `ordenable(tabla, { clave })`: ordena un `table.t` al pulsar sus encabezados; `data-v` fija el valor de una celda.                                 |
 | `docs/referencia-parrilla.html` | Referencia histórica de la que nació el sistema (Parrilla de Contenido). Solo como fuente visual.                                                  |
 
 Al compilar, `herramientas/construir.js` copia todo esto en `<app>/.publicar/<BASE_PATH>/_ds/diseno/`.
@@ -68,7 +69,7 @@ Hay dos detalles a tener en cuenta:
 - Texto: `--ink` (principal), `--ink-2` (secundario), `--ink-3` (apagado).
 - Acento: `--accent` + `--accent-ink` (texto sobre acento) + `--accent-bg` (fondo suave).
   - **Acento por marca:** si una app escribe `--primary` en el `style` de `<html>` (p. ej. el color de cada negocio en Cotízalo), el padre lo convierte en acento y lo aclara en oscuro para mantener el contraste.
-- Estados: `--ok`, `--warn`, `--danger`, cada uno con su `-bg`.
+- Estados: `--ok`, `--warn`, `--danger`, `--info`, cada uno con su `-bg`. `--info` es para avisos neutros que no son del acento (novedades, datos, ayuda).
 - Categorías: `--cat-1…5`, cada una con `-bg`. Cada app decide qué significan (tipos de examen en Cotízalo, una app por color en la central). Las clases `.cat-1…5` ponen `--c`/`--cbg` para chips e íconos.
 
 ## Forma y espaciado
@@ -84,8 +85,8 @@ Hay dos detalles a tener en cuenta:
 - **Botón** `.btn` + `.btn-primary` / `.btn-soft` / `.btn-ghost` / `.btn-danger` (`.solid`) / `.btn-sm` / `.btn-lg` / `.btn-icon`.
 - **Campos** `.field` (etiqueta + campo + `.hint`), `.row` / `.row3` (columnas), `.input-unit`, `.search`, `.check`.
 - **Tarjeta** `.card` (con `h3` de sección o `.card-h`).
-- **Aviso** `.notice` (+ `.ok` / `.warn` / `.bad`).
-- **Chip de categoría** `.tag` / `.badge` con `.cat-N`; **píldora de estado** `.badge.ok` / `.off` / `.bad` / `.warn` (clicable si es `button`).
+- **Aviso** `.notice` (+ `.ok` / `.warn` / `.bad` / `.info`).
+- **Chip de categoría** `.tag` / `.badge` con `.cat-N`; **píldora de estado** `.badge.ok` / `.off` / `.bad` / `.warn` / `.info` (clicable si es `button`).
 - **Filtro** `.chips` > `.chip` (`.on`).
 - **Pestañas** `.tabs` (subrayado) y **segmentado** `.seg`.
 - **Barra** `.bar`; **tabla** `table.t` dentro de `.tw` (en móvil, cada fila es una tarjeta).

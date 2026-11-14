@@ -86,7 +86,7 @@
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 17px;
-    letter-spacing: -.01em;
+    letter-spacing: -0.01em;
     line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -163,7 +163,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 10px;
-    transition: border-color .12s, box-shadow .12s;
+    transition: border-color 0.12s, box-shadow 0.12s;
   }
   .item:hover {
     border-color: var(--ink-3);
@@ -211,7 +211,7 @@
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 16px;
-    letter-spacing: -.01em;
+    letter-spacing: -0.01em;
     white-space: nowrap;
   }
   .item .side .btn {
@@ -235,9 +235,30 @@
   .item .side .contador .btn::after {
     content: none;
   }
-  .item .side .badge.ok {
-    white-space: normal;
-    text-align: left;
+  /* «Incluido en <perfil>»: una sola línea; si el nombre es largo, se corta con «…» (completo al pasar o tocar) */
+  .item .side .badge.incluido {
+    max-width: min(240px, 46vw);
+    min-width: 0;
+  }
+  .item .side .badge.incluido > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  /* Precio en promoción: el de antes tachado, más chico */
+  .price.promo {
+    color: var(--danger);
+  }
+  .price.promo s {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-3);
+    margin-right: 2px;
+  }
+  .promo-tag {
+    white-space: nowrap;
   }
   .item details {
     position: relative;
@@ -302,7 +323,7 @@
     background: var(--surface);
   }
   .contador .btn:disabled {
-    opacity: .35;
+    opacity: 0.35;
   }
   .contador span {
     min-width: 26px;
@@ -618,7 +639,7 @@
     font-family: var(--font-display);
     font-size: 24px;
     font-weight: 700;
-    letter-spacing: -.02em;
+    letter-spacing: -0.02em;
     color: var(--ink);
     white-space: nowrap;
   }
@@ -673,7 +694,7 @@
     flex: none;
   }
   .paper .ph .code span {
-    letter-spacing: .07em;
+    letter-spacing: 0.07em;
     font-weight: 600;
     font-size: 11px;
   }
@@ -715,7 +736,7 @@
     text-align: left;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: .07em;
+    letter-spacing: 0.07em;
     font-weight: 600;
     color: var(--ink-3);
     padding: 6px 0;
@@ -741,6 +762,29 @@
     font-size: 12px;
     margin-top: 2px;
   }
+  .paper .promo-pdf {
+    display: inline-block;
+    vertical-align: 1px;
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--info-bg);
+    color: var(--info);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .paper td.p .antes {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--ink-3);
+  }
+  .paper .nota-promo {
+    margin-top: 10px;
+    font-size: 11.5px;
+  }
   .paper .tot {
     margin-top: 14px;
     text-align: right;
@@ -749,7 +793,7 @@
     font-family: var(--font-display);
     font-size: 22px;
     font-weight: 700;
-    letter-spacing: -.02em;
+    letter-spacing: -0.02em;
   }
   .paper .note {
     margin-top: 14px;
@@ -850,7 +894,7 @@
     flex: none;
   }
   @media (min-width: 720px) {
-    .toolbar > input[type=search] {
+    .toolbar > input[type="search"] {
       max-width: 360px;
     }
     .toolbar > select {
@@ -870,7 +914,7 @@
     font-family: var(--font-body);
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: .07em;
+    letter-spacing: 0.07em;
     font-weight: 600;
     color: var(--ink-3);
   }
@@ -1014,6 +1058,116 @@
   .borrar .field {
     flex: 0 1 200px;
   }
+  /* Edición rápida de exámenes (tabla editable) */
+  .rapida table.t.editable td {
+    padding: 6px 8px;
+  }
+  .rapida table.t.editable input[type="text"],
+  .rapida table.t.editable select {
+    min-height: 34px;
+    padding: 6px 8px;
+  }
+  .rapida table.t.editable .input-unit input {
+    padding-right: 44px;
+  }
+  .rapida .centro-celda {
+    text-align: center;
+  }
+  .rapida tr.cambiada td {
+    background: var(--accent-bg);
+  }
+  .rapida tr.con-error td {
+    background: var(--danger-bg);
+  }
+  .barra-lote {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-top: 1px solid var(--line);
+    margin-top: 12px;
+  }
+  @media (min-width: 720px) {
+    .rapida table.t.editable td:first-child {
+      min-width: 200px;
+    }
+    .rapida table.t.editable td:nth-child(5) {
+      min-width: 200px;
+    }
+  }
+  @media (max-width: 719px) {
+    .rapida table.t.editable td {
+      flex: 1 1 100%;
+    }
+    .rapida table.t.editable td.centro-celda {
+      flex: 0 1 auto;
+      text-align: left;
+    }
+  }
+
+  /* Paleta de colores principales (Configuración) */
+  .paleta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+    gap: 8px;
+    max-width: 420px;
+  }
+  .muestra {
+    position: relative;
+    display: block;
+    cursor: pointer;
+  }
+  .muestra input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    margin: 0;
+    cursor: pointer;
+  }
+  .muestra span {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .muestra input:checked + span {
+    box-shadow: 0 0 0 2px var(--ink);
+  }
+  .muestra input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  /* Vista previa de descripción e indicaciones en las listas del administrador (dos líneas como máximo) */
+  .vista-previa {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--ink-3);
+    font-size: 12px;
+    margin-top: 2px;
+    max-width: 520px;
+  }
+  .vista-previa svg.i {
+    width: 13px;
+    height: 13px;
+  }
+  /* Editar perfil: suma por separado y descuento, debajo del precio */
+  .suma-perfil {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-top: 4px;
+  }
+  .suma-perfil b {
+    color: var(--ok);
+    font-weight: 600;
+  }
   .logo-prev img {
     width: 100%;
     height: 100%;
@@ -1028,7 +1182,7 @@
     align-items: center;
     margin-bottom: 14px;
   }
-  .range input[type=date] {
+  .range input[type="date"] {
     width: auto;
     flex: 1 1 140px;
     max-width: 180px;
@@ -1054,7 +1208,7 @@
   }
   .kpi .l {
     font-size: 11px;
-    letter-spacing: .07em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--ink-3);
     font-weight: 600;
@@ -1063,7 +1217,7 @@
     font-family: var(--font-display);
     font-size: 28px;
     font-weight: 700;
-    letter-spacing: -.02em;
+    letter-spacing: -0.02em;
     line-height: 1.15;
     margin-top: 6px;
     overflow-wrap: anywhere;

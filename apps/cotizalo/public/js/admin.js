@@ -18,6 +18,7 @@ import {
   modal,
   NEGOCIO,
   norm,
+  ordenable,
   parsePrecio,
   ref,
   toast,
@@ -25,6 +26,8 @@ import {
 } from "./common.js";
 import { barras, calor, graficoDias, reparto, semana } from "./charts.js";
 import { copiarTexto } from "./export.js";
+import { pPromociones } from "./promociones.js";
+import { edicionRapida, enlaceCsv, importarCsv } from "./lote.js";
 
 const root = $("#root");
 const A = { me: null, pub: null, cat: null };
@@ -96,6 +99,7 @@ const LINKS = [
   ["#/examenes", "Exámenes"],
   ["#/perfiles", "Perfiles"],
   ["#/categorias", "Categorías"],
+  ["#/promociones", "Promociones"],
   ["#/precios", "Precios"],
   ["#/config", "Configuración"],
 ];
@@ -145,6 +149,7 @@ async function ruta() {
       "#/examenes": pExamenes,
       "#/perfiles": pPerfiles,
       "#/categorias": pCategorias,
+      "#/promociones": (page) => pPromociones(page, { catalogo, recargar }),
       "#/precios": pPrecios,
       "#/config": pConfig,
     }[h] || pPanel;
@@ -301,6 +306,18 @@ async function pPanel(page) {
   });
 }
 
+/** Vista previa de indicaciones y descripción en las filas de exámenes y perfiles (dos líneas como máximo). */
+const vistaPrevia = (x) =>
+  [
+    x.indicaciones && `<div class="vista-previa">${icon("info")} ${esc(x.indicaciones)}</div>`,
+    x.descripcion && `<div class="vista-previa">${esc(x.descripcion)}</div>`,
+  ].filter(Boolean).join("");
+/** Precio de un examen en las listas: los que solo viven dentro de un perfil no tienen precio propio. */
+const precioExamen = (e) =>
+  e.solo_en_perfil
+    ? '<span class="badge off">Solo en perfil</span>'
+    : `<b>${ref(e.precio_cent)}</b>`;
+
 // ───────────── Exámenes ─────────────
 const F = { q: "", cat: "" };
 
@@ -311,9 +328,13 @@ async function pExamenes(page) {
       (!F.cat || e.categoria_id === F.cat) && (!F.q || norm(e.nombre).includes(norm(F.q)))
     );
   page.innerHTML = `
-    <div class="page-head"><h1>Exámenes <span class="muted" style="font-size:1rem;font-weight:500">(${c.examenes.length})</span></h1><button class="btn btn-primary" id="nuevo">${
-    icon("plus")
-  } Nuevo examen</button></div>
+    <div class="page-head"><h1>Exámenes <span class="muted" style="font-size:1rem;font-weight:500">(${c.examenes.length})</span></h1>
+      <button class="btn" id="rapida">${icon("edit")} Edición rápida</button>
+      <a class="btn" href="${esc(enlaceCsv("examenes"))}" download>${
+    icon("download")
+  } Exportar CSV</a>
+      <button class="btn" id="imp">Importar CSV</button>
+      <button class="btn btn-primary" id="nuevo">${icon("plus")} Nuevo examen</button></div>
     <div class="toolbar"><input type="search" id="q" placeholder="Buscar examen…" value="${
     esc(F.q)
   }" aria-label="Buscar">
@@ -322,16 +343,18 @@ async function pExamenes(page) {
       `<option value="${k.id}" ${F.cat === k.id ? "selected" : ""}>${esc(k.nombre)}</option>`
     ).join("")
   }</select></div>
-    <div class="tw"><table class="t"><thead><tr><th>Examen</th><th>Categoría</th><th class="right">Precio</th><th>Estado</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+    <div id="zona"><div class="tw"><table class="t"><thead><tr><th>Examen</th><th>Categoría</th><th class="right">Precio</th><th>Estado</th><th></th></tr></thead><tbody id="tb"></tbody></table></div></div>`;
   const pintar = () => {
     const l = lista();
     $("#tb").innerHTML = l.length
       ? l.map((e) =>
-        `<tr class="${e.activo ? "" : "off"}"><td><b>${esc(e.nombre)}</b>${
-          e.indicaciones ? `<div class="muted xs">${esc(e.indicaciones)}</div>` : ""
-        }</td><td><span class="tag cat-${
+        `<tr class="${e.activo ? "" : "off"}"><td data-v="${esc(e.nombre)}"><b>${
+          esc(e.nombre)
+        }</b>${vistaPrevia(e)}</td><td><span class="tag cat-${
           (Math.max(0, c.categorias.findIndex((k) => k.id === e.categoria_id)) % 5) + 1
-        }">${esc(e.categoria)}</span></td><td class="right nowrap"><b>${ref(e.precio_cent)}</b></td>
+        }">${esc(e.categoria)}</span></td><td class="right nowrap" data-v="${
+          e.solo_en_perfil ? "" : e.precio_cent
+        }">${precioExamen(e)}</td>
       <td><button class="badge ${
           e.activo ? "ok" : "off"
         }" style="cursor:pointer;border:0" data-t="${e.id}" title="Cambiar estado">${
@@ -346,6 +369,7 @@ async function pExamenes(page) {
       : `<tr><td colspan="5" class="empty">No hay exámenes con ese criterio.</td></tr>`;
   };
   pintar();
+  ordenable($(".t", page), { clave: "examenes" });
   $("#q").addEventListener("input", (ev) => {
     F.q = ev.target.value;
     pintar();
@@ -355,6 +379,15 @@ async function pExamenes(page) {
     pintar();
   });
   $("#nuevo").addEventListener("click", () => formExamen(c));
+  $("#imp").addEventListener(
+    "click",
+    () => importarCsv("examenes", { alTerminar: () => recargar() }),
+  );
+  $("#rapida").addEventListener("click", () => {
+    if (!c.categorias.length) return toast("Primero crea una categoría.", "bad");
+    $$("#rapida, #imp, #nuevo, .toolbar").forEach((x) => (x.hidden = true));
+    edicionRapida($("#zona"), c, lista(), { alTerminar: () => recargar() });
+  });
   $("#tb").addEventListener("click", async (ev) => {
     const b = ev.target.closest("button");
     if (!b) return;
@@ -399,9 +432,12 @@ function formExamen(c, ex) {
         }</option>`
       ).join("")
     }</select></div>
-        <div class="field"><label for="pr">Precio</label><div class="input-unit"><input id="pr" type="text" inputmode="decimal" placeholder="0,00" value="${
-      ex ? centAInput(ex.precio_cent) : ""
+        <div class="field" id="pr-f"><label for="pr">Precio</label><div class="input-unit"><input id="pr" type="text" inputmode="decimal" placeholder="0,00" value="${
+      ex && !ex.solo_en_perfil ? centAInput(ex.precio_cent) : ""
     }"><span>REF</span></div></div></div>
+      <label class="check"><input id="sp" type="checkbox" ${
+      ex?.solo_en_perfil ? "checked" : ""
+    }> Solo dentro de un perfil <span class="muted small">(no se ofrece suelto y no tiene precio propio; p. ej. LDL o HDL en el perfil lipídico)</span></label>
       <div class="field"><label for="i">Indicaciones previas <span class="muted">(opcional)</span></label><input id="i" type="text" maxlength="300" placeholder="Ej.: ayuno de 8 horas" value="${
       esc(ex?.indicaciones)
     }"></div>
@@ -415,7 +451,8 @@ function formExamen(c, ex) {
       texto: "Guardar",
       clase: "btn-primary",
       onClick: async (cerrar, btn) => {
-        const precio = parsePrecio($("#pr").value);
+        const solo = $("#sp").checked;
+        const precio = solo ? 0 : parsePrecio($("#pr").value);
         if (!$("#n").value.trim()) return toast("Escribe el nombre del examen.", "bad");
         if (precio === null) return toast("Escribe un precio válido, por ejemplo 12,50.", "bad");
         await conBoton(btn, async () => {
@@ -423,6 +460,7 @@ function formExamen(c, ex) {
             nombre: $("#n").value,
             categoria_id: $("#c").value,
             precio_cent: precio,
+            solo_en_perfil: solo,
             indicaciones: $("#i").value,
             descripcion: $("#ds").value,
             activo: $("#a").checked,
@@ -438,6 +476,12 @@ function formExamen(c, ex) {
       },
     }],
   });
+  // Con «solo dentro de un perfil» no hay precio que escribir
+  const alternarPrecio = () => {
+    $("#pr-f", m.el).hidden = $("#sp", m.el).checked;
+  };
+  alternarPrecio();
+  $("#sp", m.el).addEventListener("change", alternarPrecio);
   $("#fe", m.el).addEventListener("submit", (e) => e.preventDefault());
 }
 
@@ -447,19 +491,26 @@ async function pPerfiles(page) {
   const suma = (p) =>
     p.examen_ids.reduce((s, id) => s + (c.examenes.find((e) => e.id === id)?.precio_cent || 0), 0);
   page.innerHTML = `
-    <div class="page-head"><h1>Perfiles <span class="muted" style="font-size:1rem;font-weight:500">(${c.perfiles.length})</span></h1><button class="btn btn-primary" id="nuevo">${
-    icon("plus")
-  } Nuevo perfil</button></div>
+    <div class="page-head"><h1>Perfiles <span class="muted" style="font-size:1rem;font-weight:500">(${c.perfiles.length})</span></h1>
+      <a class="btn" href="${esc(enlaceCsv("perfiles"))}" download>${
+    icon("download")
+  } Exportar CSV</a>
+      <button class="btn" id="imp">Importar CSV</button>
+      <button class="btn btn-primary" id="nuevo">${icon("plus")} Nuevo perfil</button></div>
     <p class="muted small">Un perfil es un grupo de exámenes con un precio propio (no tiene que ser la suma de sus partes).</p>
     <div class="tw"><table class="t"><thead><tr><th>Perfil</th><th>Exámenes</th><th class="right">Precio del perfil</th><th class="right">Suma por separado</th><th>Estado</th><th></th></tr></thead><tbody>
     ${
     c.perfiles.length
       ? c.perfiles.map((p) =>
-        `<tr class="${p.activo ? "" : "off"}"><td><b>${
+        `<tr class="${p.activo ? "" : "off"}"><td data-v="${esc(p.nombre)}"><b>${
           esc(p.nombre)
-        }</b></td><td data-l="Exámenes:">${p.examen_ids.length}</td><td class="right nowrap"><b>${
+        }</b>${
+          vistaPrevia(p)
+        }</td><td data-l="Exámenes:">${p.examen_ids.length}</td><td class="right nowrap" data-v="${p.precio_cent}"><b>${
           ref(p.precio_cent)
-        }</b></td><td class="right nowrap muted" data-l="Por separado:">${ref(suma(p))}</td>
+        }</b></td><td class="right nowrap muted" data-l="Por separado:" data-v="${suma(p)}">${
+          ref(suma(p))
+        }</td>
       <td><button class="badge ${
           p.activo ? "ok" : "off"
         }" style="cursor:pointer;border:0" data-t="${p.id}">${
@@ -474,7 +525,12 @@ async function pPerfiles(page) {
       : '<tr><td colspan="6" class="empty">Aún no hay perfiles.</td></tr>'
   }
     </tbody></table></div>`;
+  ordenable($(".t", page), { clave: "perfiles" });
   $("#nuevo").addEventListener("click", () => formPerfil(c));
+  $("#imp").addEventListener(
+    "click",
+    () => importarCsv("perfiles", { alTerminar: () => recargar() }),
+  );
   $(".t tbody", page).addEventListener("click", async (ev) => {
     const b = ev.target.closest("button");
     if (!b) return;
@@ -518,7 +574,10 @@ function formPerfil(c, p) {
     }"></div>
         <div class="field"><label for="pr">Precio del perfil</label><div class="input-unit"><input id="pr" type="text" inputmode="decimal" placeholder="0,00" value="${
       p ? centAInput(p.precio_cent) : ""
-    }"><span>REF</span></div></div></div>
+    }"><span>REF</span></div><div class="suma-perfil" id="sm" aria-live="polite"></div></div></div>
+      <div class="field"><label for="ip">Indicaciones previas <span class="muted">(opcional)</span></label><input id="ip" type="text" maxlength="300" placeholder="Ej.: ayuno de 12 horas" value="${
+      esc(p?.indicaciones)
+    }"></div>
       <div class="field"><label for="ds">Descripción <span class="muted">(opcional)</span></label><input id="ds" type="text" maxlength="500" value="${
       esc(p?.descripcion)
     }"></div>
@@ -531,7 +590,9 @@ function formPerfil(c, p) {
               esc(norm(e.nombre))
             }"><input type="checkbox" value="${e.id}" ${sel.has(e.id) ? "checked" : ""}> ${
               esc(e.nombre)
-            } <span class="muted small">· ${ref(e.precio_cent)}</span></label>`
+            } <span class="muted small">· ${
+              e.solo_en_perfil ? "solo en perfil" : ref(e.precio_cent)
+            }</span></label>`
           ).join("")
         }`
       ).join("")
@@ -553,6 +614,7 @@ function formPerfil(c, p) {
           const body = {
             nombre: $("#n").value,
             descripcion: $("#ds").value,
+            indicaciones: $("#ip").value,
             precio_cent: precio,
             examen_ids: ids,
             activo: $("#a").checked,
@@ -568,13 +630,33 @@ function formPerfil(c, p) {
       },
     }],
   });
-  const resumen = () => {
+  // Suma por separado (solo los exámenes con precio propio) y descuento del perfil frente a esa suma.
+  // En un perfil nuevo, el precio sigue a la suma hasta que el administrador lo cambie a mano.
+  const precioInput = $("#pr", m.el);
+  let precioAMano = !!p;
+  precioInput.addEventListener("input", () => {
+    precioAMano = true;
+    resumen();
+  });
+  function resumen() {
     const ids = $$("#pl input:checked", m.el).map((i) => i.value);
-    const s = ids.reduce((t, id) => t + (c.examenes.find((e) => e.id === id)?.precio_cent || 0), 0);
-    $("#rs", m.el).textContent = `${ids.length} examen(es) elegido(s). Suma por separado: ${
-      ref(s)
-    }.`;
-  };
+    const elegidos = ids.map((id) => c.examenes.find((e) => e.id === id)).filter(Boolean);
+    const conPrecio = elegidos.filter((e) => !e.solo_en_perfil);
+    const suma = conPrecio.reduce((t, e) => t + e.precio_cent, 0);
+    if (!precioAMano) precioInput.value = suma ? centAInput(suma) : "";
+    const precio = parsePrecio(precioInput.value);
+    const solos = elegidos.length - conPrecio.length;
+    let txt = `Por separado: ${ref(suma)}`;
+    if (precio !== null && suma > 0 && precio < suma) {
+      const d = suma - precio;
+      txt += ` · <b>Descuento: ${ref(d)} (${Math.round((d / suma) * 100)} %)</b>`;
+    } else if (precio !== null && suma > 0 && precio > suma) {
+      txt += ` · ${ref(precio - suma)} más que por separado`;
+    }
+    if (solos) txt += ` · ${solos} solo en perfil (sin precio propio)`;
+    $("#sm", m.el).innerHTML = txt;
+    $("#rs", m.el).textContent = `${elegidos.length} examen(es) elegido(s).`;
+  }
   resumen();
   $("#pl", m.el).addEventListener("change", resumen);
   $("#bq", m.el).addEventListener("input", (ev) => {
@@ -600,7 +682,7 @@ async function pCategorias(page) {
         (c.categorias.indexOf(k) % 5) + 1
       }">${
         esc(k.nombre)
-      }</span></td><td data-l="Orden:">${k.orden}</td><td data-l="Exámenes:">${k.examenes}</td><td data-l="Mismo examen:">${
+      }</span></td><td data-l="Orden:">${k.orden}</td><td data-l="Exámenes:">${k.examenes}</td><td data-l="Mismo examen:" data-v="${k.max_por_examen}">${
         textoRepetir(k.max_por_examen)
       }</td><td><button class="badge ${
         k.activo ? "ok" : "off"
@@ -630,6 +712,12 @@ async function pCategorias(page) {
           <div class="repetir"><select id="lm"><option value="1">No: cada examen una sola vez</option><option value="n">Sí: el mismo examen varias veces</option></select>
           <div class="input-unit" id="lmn-w"><input id="lmn" type="number" min="2" max="99" inputmode="numeric" aria-label="Máximo de veces por examen" placeholder="3"><span>veces máx.</span></div></div>
           <span class="hint">Ejemplo: en Patología se pueden pedir 3 biopsias iguales; en Hematología, cada examen una sola vez. Vale para todos los exámenes de la categoría.</span></div>
+        <div class="field" id="av-w"><label for="av">Aviso para el paciente <span class="muted">(opcional)</span></label><input id="av" type="text" maxlength="200" value="${
+          esc(k?.aviso_repetible)
+        }" placeholder="En exámenes de ${
+          esc(k?.nombre || "esta categoría")
+        } se pueden analizar varias muestras.">
+          <span class="hint">Aparece al elegir esta categoría. Si lo dejas vacío, se usa el del ejemplo. No se muestra el máximo.</span></div>
         <label class="check"><input id="a" type="checkbox" ${
           k?.activo === 0 ? "" : "checked"
         }> Visible para los pacientes</label>`,
@@ -651,6 +739,7 @@ async function pCategorias(page) {
                 orden: Number($("#o", m.el).value),
                 activo: $("#a", m.el).checked,
                 max_por_examen: max,
+                aviso_repetible: $("#av", m.el).value,
               },
             });
             cerrar();
@@ -666,6 +755,7 @@ async function pCategorias(page) {
     $("#lmn", m.el).value = max > 1 ? max : 3;
     const verNumero = () => {
       $("#lmn-w", m.el).hidden = $("#lm", m.el).value !== "n";
+      $("#av-w", m.el).hidden = $("#lm", m.el).value !== "n";
     };
     $("#lm", m.el).addEventListener("change", () => {
       verNumero();
@@ -774,7 +864,10 @@ async function pPrecios(page) {
 
 // ───────────── Configuración ─────────────
 async function pConfig(page) {
-  const { config: cf, origenes, tasa_auto: ta, slug } = await api("/api/admin/config");
+  const { config: cf, origenes, tasa_auto: ta, slug, paleta, color_en_uso: colorEnUso } = await api(
+    "/api/admin/config",
+  );
+  const fechaPrecios = cf.precios_actualizados_en ? diaLocal(cf.precios_actualizados_en) : "";
   let logo = cf.logo;
   page.innerHTML = `
     <div class="page-head"><h1>Configuración</h1></div>
@@ -790,9 +883,21 @@ async function pConfig(page) {
     logo ? "" : "hidden"
   }>Quitar</button></div></div>
           <span class="hint">Se ajusta automáticamente. Funciona mejor con fondo blanco o transparente.</span></div>
-          <div class="field"><label for="co">Color principal</label><div style="display:flex;gap:10px;align-items:center"><input id="co" type="color" value="${
-    esc(cf.color_principal)
-  }"><span class="muted small">Se usa en botones y encabezados.</span></div></div></div></div>
+          <div class="field"><span class="lbl" id="co-l">Color principal</span>
+            <div class="paleta" role="radiogroup" aria-labelledby="co-l">${
+    paleta.map((p) =>
+      `<label class="muestra" title="${
+        esc(p.nombre)
+      }"><input type="radio" name="co" value="${p.color}" ${
+        p.color === colorEnUso ? "checked" : ""
+      }><span style="background:${p.color}"></span><b class="sr">${esc(p.nombre)}</b></label>`
+    ).join("")
+  }</div>
+            <span class="hint">Se usa en botones y encabezados. Todos se leen bien, también en modo oscuro.${
+    colorEnUso !== String(cf.color_principal).toLowerCase()
+      ? " Tu color anterior no estaba en esta lista: se está usando el más parecido."
+      : ""
+  }</span></div></div></div>
       <div class="card"><h3>Datos de contacto <span class="muted small" style="font-weight:500">(aparecen en el presupuesto)</span></h3>
         <div class="field" style="max-width:280px"><label for="rf">RIF</label><input id="rf" type="text" maxlength="20" value="${
     esc(cf.rif)
@@ -810,6 +915,9 @@ async function pConfig(page) {
           <div class="field"><label for="px">Prefijo del código</label><input id="px" type="text" maxlength="5" value="${
     esc(cf.prefijo_codigo)
   }" style="text-transform:uppercase"><span class="hint">2 a 5 letras o números. Ejemplo: LC → LC-000123.</span></div></div>
+        <div class="field" style="max-width:280px"><label for="pa-f">Precios actualizados el</label><input id="pa-f" type="date" max="${hoy()}" value="${
+    esc(fechaPrecios)
+  }"><span class="hint">Los pacientes ven «Precios actualizados el …». Cámbiala cuando actualices tus precios; ya no cambia sola.</span></div>
         <div class="field"><label for="pie">Texto al pie del presupuesto</label><textarea id="pie" maxlength="500" placeholder="Ej.: Presenta este presupuesto en el laboratorio.">${
     esc(cf.pie_presupuesto)
   }</textarea></div></div>
@@ -1066,7 +1174,10 @@ async function pConfig(page) {
         body: {
           nombre_publico: $("#nm").value,
           logo,
-          color_principal: $("#co").value,
+          color_principal: $("input[name=co]:checked")?.value || colorEnUso,
+          ...($("#pa-f").value && $("#pa-f").value !== fechaPrecios
+            ? { precios_actualizados_en: $("#pa-f").value }
+            : {}),
           rif: $("#rf").value,
           telefono: $("#te").value,
           horario: $("#ho").value,

@@ -20,7 +20,7 @@ h3,
 h4 {
   font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: -.02em;
+  letter-spacing: -0.02em;
   line-height: 1.2;
   margin: 0;
 }
@@ -34,7 +34,7 @@ h3 {
   font-size: 16px;
 }
 p {
-  margin: 0 0 .6em;
+  margin: 0 0 0.6em;
 }
 a {
   color: var(--accent);
@@ -74,7 +74,7 @@ textarea {
 }
 .k {
   font-size: 11px;
-  letter-spacing: .07em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--ink-3);
   font-weight: 600;
@@ -87,7 +87,7 @@ svg.i {
   width: 1.15em;
   height: 1.15em;
   flex: none;
-  vertical-align: -.2em;
+  vertical-align: -0.2em;
 }
 @media (prefers-reduced-motion: reduce) {
   * {

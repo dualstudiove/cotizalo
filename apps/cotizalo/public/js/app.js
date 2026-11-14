@@ -252,10 +252,26 @@ function filtrar() {
     (!q || norm(e.nombre).includes(q) || norm(e.descripcion).includes(q))
   );
   const pf = S.cat.perfiles.filter((p) =>
-    (!S.catId || p.examenes.some((m) => exMap.get(m.id)?.categoria_id === S.catId)) &&
+    (!S.catId ||
+      p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId)) &&
     (!q || norm(p.nombre).includes(q) || p.examenes.some((m) => norm(m.nombre).includes(q)))
   );
   return { ex, pf };
+}
+
+/** Precio de una tarjeta: con promoción, el de antes tachado y el nuevo. */
+function precioConPromo(x, sufijo = "") {
+  if (!x.promo) return `<div class="price">${ref(x.precio_cent)}${sufijo}</div>`;
+  return `<div class="price promo"><s aria-label="Antes">${ref(x.precio_lista_cent)}</s> ${
+    ref(x.precio_cent)
+  }${sufijo}</div>`;
+}
+/** Etiqueta «−25 % hasta el 20/11» de un examen o perfil en promoción. */
+function etiquetaPromo(x) {
+  if (!x.promo) return "";
+  return `<span class="badge warn promo-tag" title="${
+    esc(x.promo.nombre)
+  }">−${x.promo.porcentaje} % hasta el ${fmtFecha(x.promo.hasta)}</span>`;
 }
 
 function cardExamen(e) {
@@ -265,10 +281,9 @@ function cardExamen(e) {
   const max = maxPor(e);
   let accion;
   if (cub) {
-    accion =
-      `<span class="badge ok" style="white-space:normal;text-align:center;max-width:130px">Incluido en ${
-        esc(cub.nombre)
-      }</span>`;
+    accion = `<span class="badge ok incluido" title="Incluido en ${
+      esc(cub.nombre)
+    }"><span>Incluido en ${esc(cub.nombre)}</span></span>`;
   } else if (sel && max > 1) accion = contador(e, "tarjeta");
   else {accion = `<button type="button" class="btn btn-sm ${
       sel ? "btn-primary" : "btn-soft"
@@ -283,11 +298,11 @@ function cardExamen(e) {
         esc(cat.nombre)
       }</span>`
       : ""
-  }${e.indicaciones ? `<span>${icon("info")} ${esc(e.indicaciones)}</span>` : ""}</div>
+  }${etiquetaPromo(e)}${
+    e.indicaciones ? `<span>${icon("info")} ${esc(e.indicaciones)}</span>` : ""
+  }</div>
       ${e.descripcion ? `<p class="desc">${esc(e.descripcion)}</p>` : ""}</div>
-    <div class="side"><div class="price">${ref(e.precio_cent)}${
-    max > 1 ? "<small> c/u</small>" : ""
-  }</div>${accion}</div>
+    <div class="side">${precioConPromo(e, max > 1 ? "<small> c/u</small>" : "")}${accion}</div>
   </article>`;
 }
 
@@ -311,9 +326,11 @@ function cardPerfil(p) {
   const info = pfMap.get(p.id);
   return `<article class="item ${sel ? "sel" : ""}">
     <div><h3>${esc(p.nombre)}</h3>
-      <div class="meta"><span class="badge">Perfil · ${p.examenes.length} exámenes</span></div>
+      <div class="meta"><span class="badge">Perfil · ${p.examenes.length} exámenes</span>${
+    etiquetaPromo(p)
+  }${p.indicaciones ? `<span>${icon("info")} ${esc(p.indicaciones)}</span>` : ""}</div>
       ${p.descripcion ? `<p class="desc">${esc(p.descripcion)}</p>` : ""}</div>
-    <div class="side"><div class="price">${ref(p.precio_cent)}</div>
+    <div class="side">${precioConPromo(p)}
       <button type="button" class="btn btn-sm ${
     sel ? "btn-primary" : "btn-soft"
   }" data-act="pf" data-id="${esc(p.id)}" aria-pressed="${sel}">${
@@ -357,11 +374,12 @@ function renderLista() {
     html = lista.map(S.tab === "examenes" ? cardExamen : cardPerfil).join("");
     // Si la categoría elegida tiene límite, se avisa antes de que el paciente choque con él
     const cat = S.tab === "examenes" && S.catId && S.cat.categorias.find((c) => c.id === S.catId);
+    // Categorías con exámenes repetibles (p. ej. Patología): aviso del negocio o uno general, sin decir el máximo.
     const max = Number(cat?.max_por_examen) || 0;
     if (max > 1) {
-      html = `<p class="limite">${icon("info")}<span>De ${
-        esc(cat.nombre)
-      } puedes pedir el mismo examen <b>hasta ${max} veces</b>.</span></p>${html}`;
+      const aviso = cat.aviso_repetible ||
+        `En exámenes de ${cat.nombre} se pueden analizar varias muestras.`;
+      html = `<p class="limite">${icon("info")}<span>${esc(aviso)}</span></p>${html}`;
     }
   }
   $("#lista").innerHTML = html;
@@ -427,11 +445,19 @@ function renderResumen() {
       id: p.id,
       nombre: p.nombre,
       precio: p.precio_cent,
-      sub: `Incluye ${p.examenes.length} exámenes: ${p.examenes.map((m) => m.nombre).join(", ")}`,
+      sub: [
+        p.promo && `Promoción −${p.promo.porcentaje} %`,
+        `Incluye ${p.examenes.length} exámenes: ${p.examenes.map((m) => m.nombre).join(", ")}`,
+        p.indicaciones,
+      ].filter(Boolean).join(" · "),
     })),
     ...S.ex.map((id) => exMap.get(id)).map((e) => {
       const n = cant(e.id);
-      const sub = [n > 1 && `${n} × ${ref(e.precio_cent)}`, e.indicaciones].filter(Boolean).join(
+      const sub = [
+        e.promo && `Promoción −${e.promo.porcentaje} %`,
+        n > 1 && `${n} × ${ref(e.precio_cent)}`,
+        e.indicaciones,
+      ].filter(Boolean).join(
         " · ",
       );
       return {
