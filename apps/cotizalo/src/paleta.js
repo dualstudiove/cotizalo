@@ -1,30 +1,31 @@
-// Colores principales que un negocio puede elegir. Los 20 pasan WCAG AA (contraste 4,5:1 o más) con texto
-// blanco encima, como texto sobre el fondo claro y sobre su propio tinte claro; en modo oscuro el sistema de
-// diseño los aclara y también cumplen. Así la app del paciente siempre se lee bien.
+// Colores principales que puede elegir un negocio: vivos, de marca. El contraste no depende de que sean
+// oscuros: el sistema de diseño (packages/diseno/js/color.js) saca de cada uno el texto que va encima del
+// relleno (blanco u oscuro) y un tono para textos, bordes y foco que pasa WCAG AA en claro y en oscuro.
+// Las pruebas comprueban los 20.
 export const PALETA = [
-  ["Rojo", "#b42318"],
-  ["Tomate", "#c4320a"],
-  ["Naranja", "#b54708"],
-  ["Ámbar", "#93560a"],
-  ["Oliva", "#5c6b0f"],
-  ["Verde", "#2a7330"],
-  ["Esmeralda", "#067647"],
-  ["Turquesa", "#0b707a"],
-  ["Verde azulado", "#0f766e"],
-  ["Cian", "#0e7490"],
-  ["Celeste", "#0369a1"],
-  ["Azul", "#175cd3"],
-  ["Índigo", "#3342e8"],
-  ["Añil", "#3538cd"],
-  ["Violeta", "#5925dc"],
-  ["Morado", "#6d3fd1"],
-  ["Fucsia", "#a21caf"],
-  ["Magenta", "#c11574"],
-  ["Rosa", "#be123c"],
-  ["Pizarra", "#475467"],
+  ["Rojo", "#ef4444"],
+  ["Coral", "#fb7185"],
+  ["Naranja", "#f97316"],
+  ["Ámbar", "#f59e0b"],
+  ["Amarillo", "#facc15"],
+  ["Lima", "#84cc16"],
+  ["Verde", "#22c55e"],
+  ["Esmeralda", "#10b981"],
+  ["Turquesa", "#14b8a6"],
+  ["Cian", "#06b6d4"],
+  ["Celeste", "#0ea5e9"],
+  ["Azul", "#3b82f6"],
+  ["Índigo", "#4f46e5"],
+  ["Violeta", "#7c3aed"],
+  ["Morado", "#a855f7"],
+  ["Fucsia", "#d946ef"],
+  ["Rosa", "#ec4899"],
+  ["Frambuesa", "#e11d48"],
+  ["Café", "#b45309"],
+  ["Pizarra", "#64748b"],
 ].map(([nombre, color]) => ({ nombre, color }));
 
-export const COLOR_POR_DEFECTO = "#0b707a";
+export const COLOR_POR_DEFECTO = "#14b8a6"; // Turquesa
 const enPaleta = new Set(PALETA.map((p) => p.color));
 export const esColorDePaleta = (c) => typeof c === "string" && enPaleta.has(c.toLowerCase());
 
@@ -32,14 +33,14 @@ const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 
 /**
  * El color que de verdad se usa: si el negocio tiene uno de antes que no está en la paleta (elegido cuando el
- * selector era libre), se usa el más parecido de la paleta. Lo guardado no se toca hasta que lo cambie.
+ * selector era libre o de la paleta anterior), se usa el más parecido de la paleta. Lo guardado no se toca hasta que lo cambie.
  */
 export function colorSeguro(c) {
   if (typeof c !== "string" || !/^#[0-9a-f]{6}$/i.test(c)) return COLOR_POR_DEFECTO;
   const x = c.toLowerCase();
   if (enPaleta.has(x)) return x;
-  // El color por defecto de antes: su versión con buen contraste es Turquesa (casi igual a la vista)
-  if (x === "#0e7c86") return COLOR_POR_DEFECTO;
+  // El color por defecto de antes, y el Turquesa de la paleta anterior, siguen siendo Turquesa
+  if (x === "#0e7c86" || x === "#0b707a") return COLOR_POR_DEFECTO;
   const [r, g, b] = rgb(x);
   let mejor = COLOR_POR_DEFECTO;
   let d = Infinity;
