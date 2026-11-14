@@ -2,8 +2,9 @@
 // Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
 import { CLARO } from "../_ds/diseno/js/tokens.js";
+import { derivarAcento } from "../_ds/diseno/js/color.js";
 
-const COLOR_POR_DEFECTO = "#0b707a"; // Turquesa, el de src/paleta.js
+const COLOR_POR_DEFECTO = "#14b8a6"; // Turquesa, el de src/paleta.js
 
 /** Arma el documento a exportar a partir de la respuesta del servidor + datos opcionales del paciente. */
 export function buildDoc({ res, negocio, paciente = {} }) {
@@ -408,7 +409,8 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
     line: CLARO.line,
     lineSoft: CLARO["line-2"],
     paper: CLARO.surface,
-    primary,
+    primary, // relleno: la raya bajo el encabezado
+    primaryText: derivarAcento(primary).texto, // como texto (el código), con contraste AA
     panel: CLARO.bg, // caja del paciente
     promo: CLARO.info,
     promoBg: CLARO["info-bg"],
@@ -461,7 +463,7 @@ export function layoutDoc(d, { width, margin, pageH, measure }) {
   // Como la vista previa de la app: «PRESUPUESTO» apagado y el código en el color del negocio
   text("PRESUPUESTO", rx, 8, { bold: true, color: C.muted, align: "r" });
   y = top + 12;
-  text(d.codigo, rx, 15, { bold: true, color: C.primary, align: "r" });
+  text(d.codigo, rx, 15, { bold: true, color: C.primaryText, align: "r" });
   y = top;
   let x0 = margin;
   if (logo) {

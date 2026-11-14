@@ -65,7 +65,7 @@ export async function pasoEjemplo({ paso = "negocio", negocio_id: nid, i = 0 } =
       slug,
       adminEmail: `admin@${slug}.test`,
       adminPassword: azar,
-      color: "#0b707a",
+      color: "#14b8a6",
     });
     await db.run(
       `UPDATE configuracion_negocio SET rif = 'J-00000000-0', telefono = '0212-555-0101', direccion = 'Av. Principal, Edif. Salud, Planta Baja',
