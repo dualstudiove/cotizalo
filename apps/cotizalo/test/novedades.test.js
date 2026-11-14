@@ -316,7 +316,7 @@ test("CSV: exportar exámenes y perfiles, e importar perfiles por nombre de exam
 
 test("paleta de colores: solo se elige de la lista, y un color viejo se muestra con el más parecido", async () => {
   const cfg = (await comoAdmin("/api/admin/config")).json;
-  assert.equal(cfg.paleta.length, 20);
+  assert.equal(cfg.paleta.length, 11);
   const libre = await comoAdmin("/api/admin/config", {
     method: "PUT",
     body: { color_principal: "#ffff00" },
@@ -324,13 +324,22 @@ test("paleta de colores: solo se elige de la lista, y un color viejo se muestra 
   assert.equal(libre.status, 400);
   const ok = await comoAdmin("/api/admin/config", {
     method: "PUT",
-    body: { color_principal: "#6d3fd1" },
+    body: { color_principal: "#905dee" },
   });
   assert.equal(ok.status, 200);
-  assert.equal((await pedir("/api/publico/config")).json.negocio.color, "#6d3fd1");
+  assert.equal((await pedir("/api/publico/config")).json.negocio.color, "#905dee");
   // El color de ejemplo de antes (#0e7c86) no está en la paleta: el paciente ve el más parecido
   const { colorSeguro, esColorDePaleta } = await import("../src/paleta.js");
   assert.equal(esColorDePaleta("#0e7c86"), false);
-  assert.equal(colorSeguro("#0e7c86"), "#0b707a");
-  assert.equal(colorSeguro("no es color"), "#0b707a");
+  assert.equal(colorSeguro("#0e7c86"), "#109d9b");
+  assert.equal(colorSeguro("#0b707a"), "#109d9b"); // Turquesa de la paleta anterior → Cian
+  assert.equal(colorSeguro("no es color"), "#109d9b");
+  // El paciente recibe los tonos del color: Amarillo lleva texto oscuro y su tono oscuro en títulos y líneas
+  const { temaDe } = await import("../src/paleta.js");
+  assert.deepEqual(temaDe("#feca71"), {
+    color: "#feca71",
+    claro: "#ffefd6",
+    tinta: "#14161c",
+    acento: "#a3660f",
+  });
 });

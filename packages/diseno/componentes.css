@@ -39,12 +39,12 @@
 }
 .btn-soft {
   background: var(--accent-bg);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: transparent;
   font-weight: 600;
 }
 .btn-soft:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
 }
 .btn-ghost {
   background: transparent;
@@ -163,7 +163,7 @@ select {
 input:focus,
 select:focus,
 textarea:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: 0;
   border-color: transparent;
 }
@@ -308,7 +308,7 @@ input[type="radio"] {
   color: var(--ink);
 }
 .notice > svg.i {
-  color: var(--accent);
+  color: var(--accent-text);
   margin-top: 1px;
 }
 .notice.warn {
@@ -356,7 +356,7 @@ input[type="radio"] {
   line-height: 1.5;
   padding: 2px 8px;
   border-radius: 6px;
-  color: var(--c, var(--accent));
+  color: var(--c, var(--accent-text));
   background: var(--cbg, var(--accent-bg));
   border: 0;
   white-space: nowrap;
@@ -448,8 +448,8 @@ button.badge:hover {
 }
 .chip.on {
   background: var(--accent-bg);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -484,7 +484,7 @@ button.badge:hover {
 .tabs button.on,
 .tabs a.on {
   color: var(--ink);
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--accent-text);
   font-weight: 600;
 }
 .tabs .n {
@@ -613,7 +613,7 @@ th[aria-sort="descending"] .th-orden::after {
   opacity: 1;
 }
 .th-orden:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
   border-radius: 4px;
 }

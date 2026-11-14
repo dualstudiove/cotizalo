@@ -152,7 +152,7 @@ async function init() {
   }
   K = `pe:${S.cfg.negocio.slug}`;
   indexar();
-  aplicarColor(S.cfg.negocio.color);
+  aplicarColor(S.cfg.negocio.color, S.cfg.negocio.tema);
   document.title = `${S.cfg.negocio.nombre} · Presupuesto de exámenes`;
   cargarEstado();
   montar();

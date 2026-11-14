@@ -15,6 +15,7 @@
   --accent: #3342e8;
   --accent-ink: #ffffff;
   --accent-bg: #e8eaff;
+  --accent-text: var(--accent);
   --cat-1: #cf2f6c;
   --cat-1-bg: #fde8f0;
   --cat-2: #2561d6;
@@ -51,6 +52,7 @@
     --accent: #8590ff;
     --accent-ink: #0e1015;
     --accent-bg: #242a55;
+    --accent-text: var(--accent);
     --cat-1: #ff7fae;
     --cat-1-bg: #3b1d2b;
     --cat-2: #7aa8ff;
@@ -86,6 +88,7 @@
   --accent: #8590ff;
   --accent-ink: #0e1015;
   --accent-bg: #242a55;
+  --accent-text: var(--accent);
   --cat-1: #ff7fae;
   --cat-1-bg: #3b1d2b;
   --cat-2: #7aa8ff;
@@ -109,25 +112,29 @@
   color-scheme: dark;
 }
 
-/* --primary → --accent. Cada negocio elige su color principal y aplicarColor() lo escribe
-   como --primary en el estilo de <html>; si existe, pasa a ser el acento (en oscuro se aclara
-   para mantener el contraste). Sin color de negocio se usa el índigo del sistema. */
+/* --primary → --accent. Cada negocio elige su color principal y aplicarColor() lo escribe como --primary en
+   el estilo de <html>, con los tonos de su paleta: --primary-bg (fondo suave), --primary-ink (texto sobre el
+   relleno) y --primary-text (títulos, líneas e íconos, que el sistema llama --accent-text). En oscuro el color
+   se aclara para mantener el contraste. Sin color de negocio se usa el índigo del sistema. */
 :root[style*="--primary"] {
   --accent: var(--primary);
-  --accent-ink: #ffffff;
-  --accent-bg: color-mix(in srgb, var(--primary) 11%, var(--surface));
+  --accent-ink: var(--primary-ink, #ffffff);
+  --accent-bg: var(--primary-bg, color-mix(in srgb, var(--primary) 11%, var(--surface)));
+  --accent-text: var(--primary-text, var(--primary));
 }
 @media (prefers-color-scheme: dark) {
   :root[style*="--primary"]:not([data-theme="light"]) {
     --accent: color-mix(in srgb, var(--primary) 55%, #ffffff);
     --accent-ink: var(--bg);
     --accent-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
+    --accent-text: var(--accent);
   }
 }
 :root[style*="--primary"][data-theme="dark"] {
   --accent: color-mix(in srgb, var(--primary) 55%, #ffffff);
   --accent-ink: var(--bg);
   --accent-bg: color-mix(in srgb, var(--primary) 26%, var(--surface));
+  --accent-text: var(--accent);
 }
 
 /* Categoría de examen (en ciclo) y estados: cada clase define --c/--cbg (chips) y --sc/--sbg (estados) */

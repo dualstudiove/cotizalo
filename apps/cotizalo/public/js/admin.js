@@ -65,7 +65,7 @@ async function boot() {
     return;
   }
   A.pub = await api("/api/publico/config");
-  aplicarColor(A.pub.negocio.color);
+  aplicarColor(A.pub.negocio.color, A.pub.negocio.tema);
   document.title = `Administración · ${A.pub.negocio.nombre}`;
   armarMarco();
   window.addEventListener("hashchange", ruta);
@@ -893,7 +893,7 @@ async function pConfig(page) {
       }><span style="background:${p.color}"></span><b class="sr">${esc(p.nombre)}</b></label>`
     ).join("")
   }</div>
-            <span class="hint">Se usa en botones y encabezados. Todos se leen bien, también en modo oscuro.${
+            <span class="hint">Se usa en botones, títulos y líneas, en claro y en oscuro.${
     colorEnUso !== String(cf.color_principal).toLowerCase()
       ? " Tu color anterior no estaba en esta lista: se está usando el más parecido."
       : ""
@@ -1191,7 +1191,7 @@ async function pConfig(page) {
       });
       toast("Configuración guardada", "ok");
       A.pub = await api("/api/publico/config");
-      aplicarColor(A.pub.negocio.color);
+      aplicarColor(A.pub.negocio.color, A.pub.negocio.tema);
       armarMarco();
       ruta();
     });

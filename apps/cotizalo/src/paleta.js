@@ -1,45 +1,48 @@
-// Colores principales que un negocio puede elegir. Los 20 pasan WCAG AA (contraste 4,5:1 o más) con texto
-// blanco encima, como texto sobre el fondo claro y sobre su propio tinte claro; en modo oscuro el sistema de
-// diseño los aclara y también cumplen. Así la app del paciente siempre se lee bien.
+// Colores principales que puede elegir un negocio. La paleta se diseñó en el editor «Paleta de Cotízalo»
+// (artefacto de Claude): cada color trae tres tonos y dos decisiones.
+//   color   el tono normal: rellenos (logo, botón principal, barra del carrito)
+//   claro   fondos suaves (avisos, filtro elegido, botón secundario)
+//   oscuro  el tono profundo
+//   texto   el texto sobre el relleno: "claro" (blanco) u "oscuro"
+//   acento  el tono de títulos, líneas e íconos: "claro", "normal" u "oscuro"
+// En modo oscuro el sistema de diseño aclara el color solo (packages/diseno/tokens.css).
 export const PALETA = [
-  ["Rojo", "#b42318"],
-  ["Tomate", "#c4320a"],
-  ["Naranja", "#b54708"],
-  ["Ámbar", "#93560a"],
-  ["Oliva", "#5c6b0f"],
-  ["Verde", "#2a7330"],
-  ["Esmeralda", "#067647"],
-  ["Turquesa", "#0b707a"],
-  ["Verde azulado", "#0f766e"],
-  ["Cian", "#0e7490"],
-  ["Celeste", "#0369a1"],
-  ["Azul", "#175cd3"],
-  ["Índigo", "#3342e8"],
-  ["Añil", "#3538cd"],
-  ["Violeta", "#5925dc"],
-  ["Morado", "#6d3fd1"],
-  ["Fucsia", "#a21caf"],
-  ["Magenta", "#c11574"],
-  ["Rosa", "#be123c"],
-  ["Pizarra", "#475467"],
-].map(([nombre, color]) => ({ nombre, color }));
+  ["Rojo", "#ee2020", "#fde6e6", "#9c0c0c", "claro", "oscuro"],
+  ["Naranja", "#f56a19", "#feefe6", "#a03f07", "claro", "normal"],
+  ["Amarillo", "#feca71", "#ffefd6", "#a3660f", "oscuro", "oscuro"],
+  ["Oliva", "#899301", "#f2f3e3", "#555b01", "claro", "normal"],
+  ["Verde", "#0a8514", "#e4f2e5", "#06520c", "claro", "normal"],
+  ["Cian", "#109d9b", "#e5f4f4", "#0a6160", "claro", "normal"],
+  ["Celeste", "#a9e2fe", "#dbf3ff", "#1289c4", "oscuro", "oscuro"],
+  ["Azul", "#3276ec", "#e8f0fd", "#0f45a2", "claro", "normal"],
+  ["Morado", "#905dee", "#f3edfd", "#4e13ba", "claro", "normal"],
+  ["Rosa", "#ff5ca3", "#ffedf5", "#d7005e", "claro", "oscuro"],
+  ["Pizarra", "#697991", "#eff0f3", "#414b5a", "claro", "normal"],
+].map(([nombre, color, claro, oscuro, texto, acento]) => ({
+  nombre,
+  color,
+  claro,
+  oscuro,
+  texto,
+  acento,
+}));
 
-export const COLOR_POR_DEFECTO = "#0b707a";
-const enPaleta = new Set(PALETA.map((p) => p.color));
-export const esColorDePaleta = (c) => typeof c === "string" && enPaleta.has(c.toLowerCase());
+export const COLOR_POR_DEFECTO = "#109d9b"; // Cian
+const porColor = new Map(PALETA.map((p) => [p.color, p]));
+export const esColorDePaleta = (c) => typeof c === "string" && porColor.has(c.toLowerCase());
 
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 
 /**
- * El color que de verdad se usa: si el negocio tiene uno de antes que no está en la paleta (elegido cuando el
- * selector era libre), se usa el más parecido de la paleta. Lo guardado no se toca hasta que lo cambie.
+ * El color que de verdad se usa: si el negocio tiene uno que ya no está en la paleta (elegido con un
+ * selector libre o de una paleta anterior), se usa el más parecido. Lo guardado no se toca hasta que lo cambie.
  */
 export function colorSeguro(c) {
   if (typeof c !== "string" || !/^#[0-9a-f]{6}$/i.test(c)) return COLOR_POR_DEFECTO;
   const x = c.toLowerCase();
-  if (enPaleta.has(x)) return x;
-  // El color por defecto de antes: su versión con buen contraste es Turquesa (casi igual a la vista)
-  if (x === "#0e7c86") return COLOR_POR_DEFECTO;
+  if (porColor.has(x)) return x;
+  // El turquesa de antes (y el color por defecto anterior) pasan a Cian
+  if (x === "#0e7c86" || x === "#0b707a") return COLOR_POR_DEFECTO;
   const [r, g, b] = rgb(x);
   let mejor = COLOR_POR_DEFECTO;
   let d = Infinity;
@@ -53,4 +56,16 @@ export function colorSeguro(c) {
     }
   }
   return mejor;
+}
+
+const TINTA = { claro: "#ffffff", oscuro: "#14161c" };
+/** Lo que la app necesita para pintarse con el color del negocio (ver aplicarColor en public/js/common.js). */
+export function temaDe(color) {
+  const p = porColor.get(colorSeguro(color));
+  return {
+    color: p.color,
+    claro: p.claro,
+    tinta: TINTA[p.texto],
+    acento: p.acento === "normal" ? p.color : p[p.acento],
+  };
 }
