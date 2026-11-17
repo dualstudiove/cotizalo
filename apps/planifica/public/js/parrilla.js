@@ -1500,7 +1500,7 @@
       (o.pl ? '<span class="pl">' + o.pl + "</span>" : "") + "<b>" + esc(o.name) + "</b></div>" +
       '<div class="gt-v">' + (o.nota
         ? "<span>" + esc(o.nota) + "</span>"
-        : (o.real == null ? "<span>Sin datos aún</span>" : "<b>" + o.realTxt + "</b>") +
+        : (o.real == null ? "<b>–</b>" : "<b>" + o.realTxt + "</b>") +
           " <span>de " + o.targetTxt + (o.metaQ ? " (meta del trimestre)" : "") + "</span>") +
       "</div>" + mpill(o.st) + "</div></div>";
   }
