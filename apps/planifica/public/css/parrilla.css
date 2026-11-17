@@ -2049,4 +2049,23 @@
   a.drive.btn:hover {
     text-decoration: none;
   }
+
+  /* Detalle: en móvil, subpestañas Contenido / Producción */
+  .dtabs {
+    display: none;
+  }
+  @media (max-width:860px) {
+    .dtabs {
+      display: flex;
+      margin-bottom: 12px;
+    }
+    .dtabs button {
+      flex: 1;
+      padding: 8px 12px;
+    }
+    #dgrid[data-tab="contenido"] .col-produccion,
+    #dgrid[data-tab="produccion"] .col-contenido {
+      display: none;
+    }
+  }
 }

@@ -269,6 +269,7 @@
     postId: null,
     last: "lista",
     detailBuilt: null,
+    dtab: "contenido",
     cy: now.getFullYear(),
     cm: now.getMonth(),
     selDay: null,
@@ -448,6 +449,7 @@
     var h = location.hash.replace(/^#/, "");
     if (h.indexOf("post-") === 0) {
       S.view = "detalle";
+      if (S.postId !== h.slice(5)) S.dtab = "contenido";
       S.postId = h.slice(5);
     } else if (LISTS.indexOf(h) >= 0) {
       S.view = h;
@@ -1863,7 +1865,12 @@
       ro + ">" + stOpts + "</select>" +
       '<span id="delWrap"><button class="btn danger" type="button" data-act="del">Eliminar</button></span>' +
       '<span id="delConfirm" hidden>¿Eliminar este post? <button class="btn sm" type="button" data-act="delno">Cancelar</button> <button class="btn sm danger" type="button" data-act="delyes">Sí, eliminar</button></span></div></div>' +
-      '<div class="grid2"><div class="col">' +
+      '<div class="dtabs seg" role="group" aria-label="Sección del post">' +
+      [["contenido", "Contenido"], ["produccion", "Producción"]].map(function (x) {
+        return '<button type="button" data-act="dtab" data-v="' + x[0] + '" aria-pressed="' +
+          (S.dtab === x[0]) + '">' + x[1] + "</button>";
+      }).join("") + "</div>" +
+      '<div class="grid2" id="dgrid" data-tab="' + S.dtab + '"><div class="col col-contenido">' +
       '<section class="card"><h3>Contenido</h3>' +
       '<div class="fld"><label class="sr" for="f-title">Título</label><input id="f-title" class="in title" data-f="title" type="text" placeholder="Título o idea del post" autocomplete="off"' +
       ro + "></div>" +
@@ -1877,6 +1884,17 @@
       ro + "></div></div>" +
       '<div class="fld"><label for="f-drive">Carpeta de Drive</label><div class="drivebox"><input id="f-drive" class="in" data-f="drive" type="url" inputmode="url" placeholder="Pega el link de la carpeta con los contenidos" autocomplete="off" spellcheck="false"' +
       ro + '><span id="driveOpen"></span></div><div class="hint" id="driveHint" hidden><span class="over">Ese link no parece válido.</span></div></div>' +
+      '<div class="fld"><label for="f-copy">Copy</label><textarea id="f-copy" class="in" data-f="copy" rows="7" placeholder="Texto que acompaña la publicación"' +
+      ro + "></textarea>" +
+      '<div class="hint"><span id="cnt-copy"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-copy">Copiar copy</button></div></div>' +
+      '<div class="fld"><label for="f-hashtags">Hashtags</label><textarea id="f-hashtags" class="in" data-f="hashtags" rows="3" placeholder="#hashtag1 #hashtag2"' +
+      ro + "></textarea>" +
+      '<div class="hint"><span id="cnt-tags"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-hashtags">Copiar hashtags</button></div></div>' +
+      '</section></div><div class="col col-produccion">' +
+      '<section class="card"><div class="card-h"><h3>Producción</h3><button class="sw" id="sw-shoot" type="button" role="switch" aria-checked="false" data-act="togshoot"><span class="trk"></span><span>Incluir en la pauta</span></button></div>' +
+      '<p class="muted" id="shootHint"></p>' +
+      '<div class="fld"><label for="f-direction">Dirección creativa (descripción)</label><textarea id="f-direction" class="in" data-f="direction" rows="5" placeholder="Describe el reel o la pieza: idea, tono, estilo visual, música…"' +
+      ro + "></textarea></div>" +
       '<div class="fld refbox" id="refBox"><div class="card-h"><label class="lbl" for="f-refs">Referencias (opcional)</label>' +
       '<button class="sw" id="sw-refshow" type="button" role="switch" aria-checked="true" data-act="togrefshow"><span class="trk"></span><span>Mostrar en la pauta</span></button></div>' +
       '<textarea id="f-refs" class="in" data-f="refs" rows="3" placeholder="Pega links de referencia o escribe notas. También puedes pegar o arrastrar imágenes aquí."' +
@@ -1884,17 +1902,6 @@
       '<div id="refLinks"></div><div class="thumbs" id="refThumbs"></div>' +
       '<div class="hint"><span id="refStatus"></span><span><input id="refFile" type="file" accept="image/*" multiple hidden><button class="btn sm" type="button" id="refAdd" data-act="refadd"' +
       ro + ">+ Añadir imágenes</button></span></div></div>" +
-      '<div class="fld"><label for="f-direction">Dirección creativa (descripción)</label><textarea id="f-direction" class="in" data-f="direction" rows="5" placeholder="Describe el reel o la pieza: idea, tono, estilo visual, música…"' +
-      ro + "></textarea></div>" +
-      '<div class="fld"><label for="f-copy">Copy</label><textarea id="f-copy" class="in" data-f="copy" rows="7" placeholder="Texto que acompaña la publicación"' +
-      ro + "></textarea>" +
-      '<div class="hint"><span id="cnt-copy"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-copy">Copiar copy</button></div></div>' +
-      '<div class="fld"><label for="f-hashtags">Hashtags</label><textarea id="f-hashtags" class="in" data-f="hashtags" rows="3" placeholder="#hashtag1 #hashtag2"' +
-      ro + "></textarea>" +
-      '<div class="hint"><span id="cnt-tags"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-hashtags">Copiar hashtags</button></div></div>' +
-      '</section></div><div class="col">' +
-      '<section class="card"><div class="card-h"><h3>Producción</h3><button class="sw" id="sw-shoot" type="button" role="switch" aria-checked="false" data-act="togshoot"><span class="trk"></span><span>Incluir en la pauta</span></button></div>' +
-      '<p class="muted" id="shootHint"></p>' +
       '<div class="fld"><span class="lbl" id="lbl-shot">Lista de tomas</span><div class="shots" id="shotsBox" role="group" aria-labelledby="lbl-shot"></div><div class="hint"><span id="shotProg"></span><button class="btn sm" type="button" id="shotAdd" data-act="shotadd"' +
       ro +
       '>+ Añadir toma</button></div></div><div class="fld"><label for="f-voice">Guión de voz (opcional)</label><textarea id="f-voice" class="in" data-f="voice" rows="4" placeholder="Una frase por línea. Déjalo vacío si no lleva voz."' +
@@ -2486,6 +2493,14 @@
         p.refShow = !(p.refShow !== false);
         queueSave("posts/" + p.id, { refShow: p.refShow }, 0);
         paintDetail();
+        break;
+      case "dtab":
+        S.dtab = el.dataset.v;
+        $("#dgrid").dataset.tab = S.dtab;
+        document.querySelectorAll('[data-act="dtab"]').forEach(function (b) {
+          b.setAttribute("aria-pressed", String(b.dataset.v === S.dtab));
+        });
+        window.scrollTo(0, 0);
         break;
       case "group":
         S.group = el.dataset.v;
