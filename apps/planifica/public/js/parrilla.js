@@ -51,7 +51,7 @@
     idea: "Idea",
     porproducir: "Por producir",
     produccion: "En producción",
-    listo: "Listo",
+    listo: "Por publicar",
     publicado: "Publicado",
   };
   var PLATFORMS = { ig: "Instagram", tt: "TikTok" };
@@ -515,8 +515,21 @@
       '<button class="btn ghost" type="button" data-act="today">' + (q ? "Este trimestre" : "Hoy") +
       "</button></div>";
   }
+  /* Iconos de estado progresivos: círculo punteado → ¼ → ½ → ¾ → hecho. */
+  var ST_ICON = {
+    idea: '<circle cx="8" cy="8" r="6.25" stroke-dasharray="2.4 2.5"/>',
+    porproducir: '<circle cx="8" cy="8" r="6.25"/><path class="fl" d="M8 8V3.75A4.25 4.25 0 0 1 12.25 8z"/>',
+    produccion: '<circle cx="8" cy="8" r="6.25"/><path class="fl" d="M8 3.75a4.25 4.25 0 0 1 0 8.5z"/>',
+    listo: '<circle cx="8" cy="8" r="6.25"/><path class="fl" d="M8 8V3.75A4.25 4.25 0 1 1 3.75 8z"/>',
+    publicado: '<circle class="fl" cx="8" cy="8" r="7"/><path class="ck" d="M5.2 8.2l1.9 1.9 3.7-4"/>',
+    bad: '<circle class="fl" cx="8" cy="8" r="7"/><path class="ck" d="M5.75 5.75l4.5 4.5M10.25 5.75l-4.5 4.5"/>',
+  };
+  function stIcon(k) {
+    return '<svg class="sti" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      (ST_ICON[k] || ST_ICON.idea) + "</svg>";
+  }
   function stPill(s) {
-    return '<span class="st st-' + esc(s || "idea") + '"><i></i>' + esc(STATUS[s] || "Idea") +
+    return '<span class="st st-' + esc(s || "idea") + '">' + stIcon(s) + esc(STATUS[s] || "Idea") +
       "</span>";
   }
   function notices() {
@@ -664,7 +677,7 @@
   function stSelect(p) {
     var cur = STATUS[p.status] ? p.status : "idea";
     if (!S.canWrite) return stPill(cur);
-    return '<label class="st stsel st-' + cur + '" title="Cambiar estado"><i></i><span>' +
+    return '<label class="st stsel st-' + cur + '" title="Cambiar estado">' + stIcon(cur) + '<span>' +
       esc(STATUS[cur]) +
       '</span><svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>' +
       '<select data-stsel="' + esc(p.id) + '" aria-label="Estado de ' +
@@ -757,7 +770,7 @@
       '<span class="ct">' + (esc(p.title) || "Sin título") + "</span>" +
       '<span class="cm">' + (p.time ? "<em>" + esc(p.time) + "</em>" : "") + "<i>" +
       fIcon(p.format) + f.label + "</i>" + (pl ? "<b>" + pl + "</b>" : "") + "</span>" +
-      '<span class="cs cs-' + st + '"><u></u>' + esc(STATUS[st]) + "</span></a>";
+      '<span class="cs cs-' + st + '">' + stIcon(st) + esc(STATUS[st]) + "</span></a>";
   }
   function viewCal() {
     var y = S.cy,
@@ -977,7 +990,8 @@
       pend: "st-idea",
       miss: "st-porproducir",
     }[s.k];
-    return '<span class="st ' + c + '"><i></i>' + esc(s.t) + "</span>";
+    var ic = { ok: "publicado", bad: "bad", run: "produccion", pend: "idea", miss: "idea" }[s.k];
+    return '<span class="st ' + c + '">' + stIcon(ic) + esc(s.t) + "</span>";
   }
   function metricList(g, pl) {
     return (g && g.metrics && Array.isArray(g.metrics[pl]))
