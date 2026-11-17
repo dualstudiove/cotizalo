@@ -43,6 +43,7 @@ Un cliente sin acceso responde como si no existiera, y ninguna consulta cruza cl
 
 - **Cambios de otras personas:** la parrilla se refresca cada 30 s mientras la pestaña está visible, al volver a ella y tras cada cambio propio. Cuando no hubo cambios, el servidor responde con una sola lectura en la base.
 - **Guardado:** es automático, igual que en el artefacto. Lo que escribes se ve al instante y se confirma con el servidor.
+- **Carpeta de Drive:** cada publicación tiene un campo para pegar el link de su carpeta de Drive con los contenidos. Se abre desde el post, desde la Lista y la Pauta (ícono «Drive») y queda como enlace en el PDF de la pauta. Si se pega sin `https://`, se añade solo.
 - **Imágenes de referencia:** el navegador las reduce a 1080 px y las guarda en WebP, de unos 40 a 90 KB cada una. Hay un tope de 400 KB por imagen y de 50 MB por cliente (el uso aparece en Clientes y equipo), y se borran con su publicación.
   - Hoy se guardan en D1. Para pasarlas a otro sitio (por ejemplo Google Drive, una carpeta por cliente) se añade un almacén en `src/almacen.js`; el resto de la app no cambia. Para Drive hará falta conectar una cuenta de Google.
 - **Topes diarios por cliente**, guardados en la base: 5 000 cambios y 200 imágenes. Frenan un uso desbocado antes de que agote la cuota gratuita de la cuenta.

@@ -150,6 +150,29 @@
     });
     return out;
   }
+  /* Carpeta de Drive del post: un solo link. Acepta que lo peguen sin https://. */
+  function driveHref(v) {
+    v = String(v || "").trim();
+    if (!v || /\s/.test(v)) return "";
+    if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+    try {
+      var x = new URL(v);
+      return (x.protocol === "http:" || x.protocol === "https:") && /\.[a-z]{2,}$/i.test(x.hostname)
+        ? x.href
+        : "";
+    } catch (e) {
+      return "";
+    }
+  }
+  var DRIVE_SVG =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.75h5.6a1 1 0 0 1 1 1v6.75a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>';
+  function driveLink(p, cls) {
+    var h = driveHref(p.drive);
+    if (!h) return "";
+    return '<a class="drive' + (cls ? " " + cls : "") + '" href="' + esc(h) +
+      '" target="_blank" rel="noopener noreferrer" title="Abrir la carpeta de Drive">' + DRIVE_SVG +
+      "<span>Drive</span></a>";
+  }
   function linksHtml(text, cls) {
     var l = extractLinks(text);
     if (!l.length) return "";
@@ -397,6 +420,7 @@
       location: "",
       props: "",
       refs: "",
+      drive: "",
       shotDone: false,
       createdAt: ts,
       createdBy: S.uid || null,
@@ -662,7 +686,7 @@
       '<div><div class="t"><a class="rlink" href="#post-' + esc(p.id) + '" draggable="false">' +
       (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a></div>" +
       '<div class="meta"><span class="tag">' + fIcon(p.format) + f.label + "</span>" +
-      (pl ? '<span class="pl">' + pl + "</span>" : "") + "</div></div>" +
+      (pl ? '<span class="pl">' + pl + "</span>" : "") + driveLink(p) + "</div></div>" +
       stSelect(p) + "</div>";
   }
 
@@ -1319,6 +1343,7 @@
     det.push("<b>Publica:</b> " + esc(whenTxt(p)) + " · " + esc(platTxt(p)));
     if (p.location) det.push("<b>Locación:</b> " + esc(p.location));
     if (p.props) det.push("<b>Props / vestuario:</b> " + esc(p.props));
+    if (driveHref(p.drive)) det.push(driveLink(p));
     return '<div class="item f-' + esc(p.format) + (taken ? " done" : "") + '">' +
       '<button class="ck" type="button" role="checkbox" aria-checked="' + taken +
       '" aria-label="Marcar todo como tomado: ' + esc(p.title || "Sin título") +
@@ -1616,6 +1641,23 @@
       if (p.location) para("Locación:", p.location);
       if (p.props) para("Props / vestuario:", p.props);
       if (p.direction) para("Dirección creativa:", p.direction);
+      var dhref = driveHref(p.drive);
+      if (dhref) {
+        ops.push({
+          h: 16,
+          draw: function (yy) {
+            font("bold", 9.5, C.ink);
+            var lb = "Carpeta de Drive: ", lw = doc.getTextWidth(lb);
+            doc.text(lb, IX, yy + 9.5);
+            font("normal", 9.5, C.accent);
+            var t = doc.splitTextToSize("Abrir carpeta", IW - lw)[0];
+            doc.textWithLink(t, IX + lw, yy + 9.5, { url: dhref });
+            stroke(C.accent);
+            doc.setLineWidth(.5);
+            doc.line(IX + lw, yy + 11, IX + lw + doc.getTextWidth(t), yy + 11);
+          },
+        });
+      }
       var shots = getShots(p), voice = voiceLines(p);
       if (shots.length) {
         section(f.list);
@@ -1833,6 +1875,8 @@
       ro + "></div>" +
       '<div class="fld"><label for="f-time">Hora</label><input id="f-time" class="in" data-f="time" type="time"' +
       ro + "></div></div>" +
+      '<div class="fld"><label for="f-drive">Carpeta de Drive</label><div class="drivebox"><input id="f-drive" class="in" data-f="drive" type="url" inputmode="url" placeholder="Pega el link de la carpeta con los contenidos" autocomplete="off" spellcheck="false"' +
+      ro + '><span id="driveOpen"></span></div><div class="hint" id="driveHint" hidden><span class="over">Ese link no parece válido.</span></div></div>' +
       '<div class="fld refbox" id="refBox"><div class="card-h"><label class="lbl" for="f-refs">Referencias (opcional)</label>' +
       '<button class="sw" id="sw-refshow" type="button" role="switch" aria-checked="true" data-act="togrefshow"><span class="trk"></span><span>Mostrar en la pauta</span></button></div>' +
       '<textarea id="f-refs" class="in" data-f="refs" rows="3" placeholder="Pega links de referencia o escribe notas. También puedes pegar o arrastrar imágenes aquí."' +
@@ -1881,6 +1925,12 @@
     }
     var rl = $("#refLinks"), rf = $("#f-refs");
     if (rl && rf) rl.innerHTML = linksHtml(rf.value);
+    var dv = $("#f-drive"), dop = $("#driveOpen");
+    if (dv && dop) {
+      var dh = driveHref(dv.value);
+      dop.innerHTML = dh ? driveLink({ drive: dh }, "btn sm") : "";
+      $("#driveHint").hidden = !dv.value.trim() || !!dh;
+    }
   }
   function paintFooter() {
     var p = S.posts.get(S.postId), el = $("#editedBy");
@@ -2634,7 +2684,9 @@
         o,
         el.tagName === "SELECT" || el.type === "date" || el.type === "time" ? 150 : 600,
       );
-      if (el.id === "f-copy" || el.id === "f-hashtags" || el.id === "f-refs") paintCounters();
+      if (
+        el.id === "f-copy" || el.id === "f-hashtags" || el.id === "f-refs" || el.id === "f-drive"
+      ) paintCounters();
     }
   });
   document.addEventListener("change", function (e) {

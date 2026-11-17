@@ -22,6 +22,7 @@ export const CAMPOS_PUBLICACION = new Set([
   "refs",
   "refImgs",
   "refShow",
+  "drive",
 ]);
 export const FORMATOS = new Set(["reel", "carrusel", "foto", "historia", "diseno"]);
 export const ESTADOS = new Set(["idea", "porproducir", "produccion", "listo", "publicado"]);
@@ -79,6 +80,11 @@ export function validarCambiosPublicacion(cambios) {
     }
     if (k === "time" && v !== "" && !(typeof v === "string" && /^\d{2}:\d{2}$/.test(v))) {
       throw new HttpError(400, "La hora no es válida.");
+    }
+    // Link de la carpeta de Drive. Se guarda tal como se escribe (también a medias); la interfaz
+    // solo lo vuelve enlace si es http(s).
+    if (k === "drive" && (typeof v !== "string" || v.length > 2000)) {
+      throw new HttpError(400, "El link de Drive no es válido.");
     }
     if (k === "refImgs" && (!Array.isArray(v) || v.some((x) => !x || typeof x.id !== "string"))) {
       throw new HttpError(400, "Las imágenes no son válidas.");

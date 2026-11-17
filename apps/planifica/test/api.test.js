@@ -212,6 +212,18 @@ test("validación de publicaciones", async () => {
     })).status,
     400,
   );
+  assert.equal((await mal({ drive: 123 })).status, 400);
+  assert.equal((await mal({ drive: "https://x.co/" + "a".repeat(2000) })).status, 400);
+  const conDrive = await mal({
+    title: "Con carpeta",
+    drive: "https://drive.google.com/drive/folders/abc",
+  });
+  assert.equal(conDrive.status, 200);
+  const dd = await editora("/laboratorio-rh/api/datos");
+  assert.equal(
+    dd.json.publicaciones.find((x) => x.id === conDrive.json.id).drive,
+    "https://drive.google.com/drive/folders/abc",
+  );
   const ok = await mal({ title: "Campo desconocido se ignora", inventado: 1 });
   const d = await editora("/laboratorio-rh/api/datos");
   assert.equal(d.json.publicaciones.find((x) => x.id === ok.json.id).inventado, undefined);
