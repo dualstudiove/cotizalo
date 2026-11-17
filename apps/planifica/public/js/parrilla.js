@@ -1559,12 +1559,16 @@
   /** Objetivos (lectura): una tarjeta por métrica con su avance del trimestre y los tres meses. */
   function metricRead(gid, pl, m0, y, qn) {
     var m = effM(m0, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin), key = gid + "|" + pl + "|" + m.id + "|";
-    var src = m.src && m.src !== "manual" && pl === "ig"
-      ? '<span class="auto">' + IG_SVG + "Se llena solo</span>"
+    var igOk = igCon() && igCon().estado !== "error";
+    var src = m._isAuto
+      ? '<span class="auto">' + IG_SVG + (igOk ? "Se llena solo" : "Se llenará al conectar Instagram") + "</span>"
       : '<span class="auto">Se escribe a mano</span>';
     if (!ms) {
       return '<div class="gm"><div class="gt-h"><span class="pl">' + PLAT_ABBR[pl] + "</span><b>" +
-        esc(m.name || "Sin nombre") + '</b></div><p class="gv-empty">Falta el valor actual o la meta. Pulsa «Editar».</p></div>';
+        esc(m.name || "Sin nombre") + '</b></div><p class="gv-empty">' +
+        (m._isAuto && hasNum(m.tar) && !(igCon() && igCon().estado !== "error")
+          ? "El punto de partida se llenará al conectar Instagram."
+          : "Falta el valor de hoy o la meta. Pulsa «Editar».") + "</p></div>";
     }
     var q = quarterProgress(m, ms, y, qn);
     var h = '<div class="gm"><div class="gm-top">' + ring(q.pct, q.st.k) + '<div class="gt-b"><div class="gt-h"><span class="pl">' +
@@ -1580,7 +1584,8 @@
           '" type="text" inputmode="decimal" placeholder="Real" value="' + esc(valStr(pr.real)) + '" autocomplete="off">';
       } else {
         realHtml = '<span class="rv">' + (pr.real == null ? "–" : fmtNum(pr.real, ms.d)) + "</span>" +
-          (m._isAuto && pr.real == null && y * 12 + mi >= now.getFullYear() * 12 + now.getMonth()
+          (m._isAuto && pr.real == null && y * 12 + mi >= now.getFullYear() * 12 + now.getMonth() && igCon() &&
+              igCon().estado !== "error"
             ? '<span class="mut">se llena solo</span>'
             : "");
       }
@@ -1644,6 +1649,15 @@
     });
     var qObjs = lines(qg.objectives);
     var empty = !qg.theme && !qObjs.length && !metrics.length;
+    var hasManual = metricList(qg, "tt").length > 0 || metricList(qg, "ig").some(function (m) {
+      return srcOf(m, "ig") === "manual";
+    });
+    var needsIg = metricList(qg, "ig").some(function (m) {
+      return srcOf(m, "ig") !== "manual";
+    });
+    if (needsIg && (!igCon() || igCon().estado === "error")) {
+      h += igConnectNotice("Las metas de Instagram (seguidores, alcance, medias…) se llenarán solas cuando la cuenta esté conectada.");
+    }
     h += '<section class="card"><div class="card-h"><h3>Trimestre T' + (qn + 1) + "</h3></div>";
     if (empty) {
       h += '<div class="empty" style="border:0;padding:18px 8px"><h3>Aún no hay objetivos para este trimestre</h3>' +
@@ -1655,7 +1669,7 @@
       if (qObjs.length) h += gObjs(qid, qg, false);
       h += metrics.length
         ? '<div class="fld"><span class="lbl">Metas</span><div class="gms">' + metrics.join("") + "</div>" +
-          (S.canWrite ? '<p class="hint" style="min-height:0"><span>Las que se escriben a mano: anota el valor real al cierre de cada mes.</span></p>' : "") +
+          (S.canWrite && hasManual ? '<p class="hint" style="min-height:0"><span>Las que se escriben a mano: anota el valor real al cierre de cada mes.</span></p>' : "") +
           "</div>"
         : '<p class="gv-empty">Sin metas con números. ' + (S.canWrite ? "Pulsa «Editar» para añadirlas." : "") + "</p>";
       h += gNotes(qid, qg, false);
@@ -2342,15 +2356,30 @@
     return '<span class="' + (cls || "mthumb") + ' ph f-' + esc(p.format) + '" aria-hidden="true">' +
       fIcon(p.format) + "</span>";
   }
+  /** Aviso cuando Instagram no está conectado (o falló): qué se gana y cómo conectarlo. */
+  function igConnectUrl() {
+    return window.PLANIFICA.base + "/admin?instagram=" + encodeURIComponent(window.PLANIFICA.cliente);
+  }
+  function igConnectNotice(texto, compacto) {
+    var c = igCon(), roto = c && c.estado === "error";
+    var titulo = roto ? "Hay que volver a conectar Instagram" : "Conecta Instagram";
+    var cuerpo = roto
+      ? "La conexión con @" + esc(c.usuario) + " dejó de funcionar" + (c.error ? ": " + esc(c.error) : ".")
+      : texto;
+    var accion = window.PLANIFICA.esAdmin
+      ? '<a class="btn sm primary" href="' + esc(igConnectUrl()) + '">' + IG_SVG + (roto ? "Reconectar" : "Conectar Instagram") + "</a>"
+      : '<span class="muted small">Pídeselo a un administrador de Dual Studio.</span>';
+    return '<div class="connect' + (compacto ? " sm" : "") + '"><span class="cn-ic">' + IG_SVG + '</span><div class="cn-b"><b>' +
+      titulo + "</b><p>" + cuerpo + "</p></div>" + accion + "</div>";
+  }
   /** Cuerpo de la tarjeta «Métricas de Instagram» en el detalle del post. */
   function igCardBody(p) {
     var c = igCon(), x = igMet(p), link = String(p.igLink || "").trim();
-    if (!c) {
-      return '<p class="muted">Este cliente aún no tiene su Instagram conectado. Un administrador puede conectarlo en <b>Clientes y equipo</b>.</p>';
-    }
-    if (c.estado === "error") {
-      return '<p class="warn-note">La conexión con @' + esc(c.usuario) +
-        " tiene un problema: " + esc(c.error || "") + " Un administrador debe volver a conectarla.</p>";
+    if (!c || c.estado === "error") {
+      return igConnectNotice("Así verás el alcance, los likes y los guardados de este post.", true) +
+        (link
+          ? '<p class="muted small">El link ya está guardado: se vinculará solo cuando la cuenta esté conectada.</p>'
+          : '<p class="muted small">Puedes pegar el link igual: se vinculará solo cuando la cuenta esté conectada.</p>');
     }
     if (!link) {
       return '<p class="muted">' + (p.status === "publicado"
@@ -2407,6 +2436,8 @@
   function linkIg(id) {
     var path = "posts/" + id;
     flush(path);
+    var cn = igCon();
+    if (!cn || cn.estado === "error") return; // se guarda; se vinculará al conectar la cuenta
     S.igLinking = id;
     paintDetail();
     (chain[path] || Promise.resolve()).then(function () {
@@ -2744,6 +2775,20 @@
       '<p class="hint" style="min-height:0"><span>Promedio de seguidores conectados por hora (hora de Venezuela), de los últimos 30 días.</span></p>';
   }
 
+  /** «Plan contra realidad» sin métricas: planificados y publicados del periodo. */
+  function planVsReal(r, withLinks) {
+    var planned = allPosts().filter(function (p) {
+        return p.date && p.date >= r.desde && p.date <= r.hasta;
+      }),
+      published = planned.filter(function (p) {
+        return p.status === "publicado";
+      });
+    return '<section class="card" style="margin-top:16px"><h3>Plan contra realidad</h3><div class="pvr two">' +
+      "<div><b>" + planned.length + "</b><span>planificados</span></div>" +
+      "<div><b>" + published.length + "</b><span>publicados</span></div></div></section>";
+  }
+  var TT_SVG =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2v8.25a2.75 2.75 0 1 1-2.75-2.75"/><path d="M9.5 2c.3 1.9 1.6 3.1 3.5 3.25"/></svg>';
   var SORT_KEYS = [["alcance", "Alcance"], ["interacciones", "Interacciones"], ["likes", "Likes"], ["guardados", "Guardados"], ["compartidos", "Compartidos"]];
   function postDay(p, x) {
     return (x && x.publicado_en ? String(x.publicado_en).slice(0, 10) : "") || p.date || "";
@@ -2751,24 +2796,30 @@
   function viewRes() {
     var h = notices() + monthBar();
     h += '<div class="ptools"><div class="seg" role="group" aria-label="Red">' +
-      '<button type="button" aria-pressed="true">Instagram</button>' +
-      '<button type="button" disabled title="Próximamente">TikTok</button></div>' +
+      '<button type="button" data-act="resred" data-v="ig" aria-pressed="' + (S.resRed !== "tt") + '">Instagram</button>' +
+      '<button type="button" data-act="resred" data-v="tt" aria-pressed="' + (S.resRed === "tt") + '">TikTok</button></div>' +
       '<div class="seg" role="group" aria-label="Periodo">' +
       [["m", "Mes"], ["q", "Trimestre"]].map(function (x) {
         return '<button type="button" data-act="resper" data-v="' + x[0] + '" aria-pressed="' +
           ((S.resPer || "m") === x[0]) + '">' + x[1] + "</button>";
       }).join("") + "</div>" +
-      '<span class="res-upd"><span class="muted">' + esc(igLastTxt()) + "</span>" + igUpdButton() +
-      "</span></div>";
-    var c = igCon();
-    if (!c) {
-      main.innerHTML = h + '<div class="empty"><h3>Instagram no está conectado</h3><p>Cuando un administrador conecte la cuenta de este cliente en <b>Clientes y equipo</b>, aquí verás su rendimiento. Las cifras se guardan desde ese día.</p></div>';
+      (igCon() && S.resRed !== "tt"
+        ? '<span class="res-upd"><span class="muted">' + esc(igLastTxt()) + "</span>" + igUpdButton() + "</span>"
+        : "") + "</div>";
+    var c = igCon(), r0 = resRange(), m0 = resQ() ? Math.floor(S.cm / 3) * 3 : S.cm;
+    if (S.resRed === "tt") {
+      main.innerHTML = h + '<div class="connect"><span class="cn-ic">' + TT_SVG + '</span><div class="cn-b"><b>Pronto: métricas de TikTok</b>' +
+        "<p>Las reproducciones, likes, comentarios y compartidos de cada video, y los seguidores de la cuenta, en esta misma pestaña. Mientras tanto, las metas de TikTok se escriben a mano en Objetivos.</p></div></div>" +
+        goalsSummary(S.cy, m0, resQ()) + planVsReal(r0, false);
       return;
     }
-    if (c.estado === "error") {
-      h += '<p class="warn-note">La conexión con @' + esc(c.usuario) + " tiene un problema: " +
-        esc(c.error || "") + " Un administrador debe volver a conectarla.</p>";
+    if (!c) {
+      // Sin Instagram: lo que no depende de la cuenta (objetivos y plan) sigue a la vista.
+      main.innerHTML = h + igConnectNotice("Verás el alcance, la media de likes, la evolución de seguidores, los mejores posts y la mejor hora para publicar. Las cifras se guardan desde el día en que se conecta.") +
+        goalsSummary(S.cy, m0, resQ()) + planVsReal(r0, false);
+      return;
     }
+    if (c.estado === "error") h += igConnectNotice("");
     var r = resRange(), L = resLoad(r);
     var dias = (L.data && L.data.dias) || [];
     // Indicadores
@@ -3451,6 +3502,10 @@
     if (!el) return;
     var act = el.dataset.act, p;
     switch (act) {
+      case "resred":
+        S.resRed = el.dataset.v;
+        render();
+        break;
       case "resper":
         S.resPer = el.dataset.v;
         render();

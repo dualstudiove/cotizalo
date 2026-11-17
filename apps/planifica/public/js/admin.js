@@ -40,6 +40,13 @@ async function boot() {
   D = await api("/api/admin/resumen");
   D.yo = s.usuario.id;
   pintar();
+  // Desde la parrilla («Conectar Instagram»): abre directo la conexión de ese cliente.
+  const slug = new URLSearchParams(location.search).get("instagram");
+  const c = slug && D.clientes.find((x) => x.slug === slug);
+  if (c) {
+    history.replaceState(null, "", `${location.pathname}#clientes`);
+    formInstagram(c);
+  }
 }
 
 async function recargar() {

@@ -112,6 +112,8 @@ async function refrescar() {
     metricas: r.metricas || {},
     cuentaMes: r.cuentaMes || {},
   };
+  // Para los avisos «Conectar Instagram»: solo un administrador puede conectarla.
+  window.PLANIFICA.esAdmin = !!(r.navegacion && r.navegacion.es_admin);
   pintarCabecera();
   avisar();
 }
