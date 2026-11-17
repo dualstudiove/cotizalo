@@ -1167,6 +1167,28 @@
     if (!cm || cm[src] == null) return null;
     return cm[src];
   }
+  /**
+   * «Hoy» de una meta que se llena sola: el dato del mes anterior al trimestre (el punto de partida). Si ese mes
+   * aún no tiene datos (p. ej. la cuenta se conectó después), el mes más reciente que sí los tenga.
+   * → { v, mes } o null
+   */
+  function baseVal(src, y, qn) {
+    if (!src || src === "manual") return null;
+    var now = new Date(), y0 = y, m0 = qn * 3 - 1;
+    if (m0 < 0) {
+      m0 += 12;
+      y0--;
+    }
+    var v = autoVal(src, y0, m0);
+    if (v != null) return { v: v, mes: m0 };
+    for (var k = 1; k <= 12; k++) {
+      var d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+      v = autoVal(src, d.getFullYear(), d.getMonth());
+      if (v != null) return { v: v, mes: d.getMonth() };
+    }
+    v = autoVal(src, now.getFullYear(), now.getMonth());
+    return v != null ? { v: v, mes: now.getMonth() } : null;
+  }
   function effM(m, pl, y, qn) {
     if (pl !== "ig" || !m.src || m.src === "manual") return m;
     var real = [], auto = [];
@@ -1181,7 +1203,12 @@
         auto.push(a != null);
       }
     }
-    return Object.assign({}, m, { real: real, _auto: auto });
+    var extra = { real: real, _auto: auto };
+    if (!hasNum(m.cur)) {
+      var b = baseVal(m.src, y, qn);
+      if (b) extra.cur = b.v;
+    }
+    return Object.assign({}, m, extra);
   }
   function metricCard(gid, g, pl, m0, edit, y, qn) {
     var m = effM(m0, pl, y, qn);
@@ -1205,7 +1232,11 @@
         '<div class="fld"><label for="mf-' + uid + '-cur">Hoy</label><input class="in" id="mf-' +
         uid + '-cur" data-mf="' + key +
         'cur" type="text" inputmode="decimal" placeholder="1.200" value="' + esc(valStr(m.cur)) +
-        '" autocomplete="off"></div>' +
+        '" autocomplete="off">' +
+        (m.curAuto && pl === "ig" && m.src && m.src !== "manual"
+          ? '<span class="hint" style="min-height:0"><span class="auto">' + IG_SVG + "Dato de Instagram" +
+            (m.curMes != null ? " de " + MONTHS[m.curMes].toLowerCase() : "") + "</span></span>"
+          : "") + "</div>" +
         '<div class="fld"><label for="mf-' + uid +
         '-tar">Meta del trimestre</label><input class="in" id="mf-' + uid + '-tar" data-mf="' + key +
         'tar" type="text" inputmode="decimal" placeholder="2.000" value="' + esc(valStr(m.tar)) +
@@ -3786,12 +3817,34 @@
     if (el.dataset && el.dataset.mf) {
       var mq = el.dataset.mf.split("|");
       editMetric(mq[0], mq[1], mq[2], function (m) {
-        if (mq[3] === "name") m.name = el.value.trim();
+        if (mq[3] === "name") {
+          m.name = el.value.trim();
+          m.nameAuto = false;
+        }
         else if (mq[3] === "src") {
           m.src = el.value === "manual" ? null : el.value;
-          if (m.src && !m.name) m.name = srcLabel(m.src).replace(/ \(.*\)| del mes/g, "");
+          // El nombre sigue al origen mientras nadie lo haya escrito a mano.
+          if (m.src && (!m.name || m.nameAuto)) {
+            m.name = srcLabel(m.src).replace(/ \(.*\)| del mes/g, "");
+            m.nameAuto = true;
+          }
+          // «Hoy» se llena solo con el dato de Instagram (si está vacío o ya venía de Instagram).
+          var gq = /^q-(\d{4})-([1-4])$/.exec(mq[0]);
+          if (m.src && gq && (!hasNum(m.cur) || m.curAuto)) {
+            var bv = baseVal(m.src, Number(gq[1]), Number(gq[2]) - 1);
+            if (bv) {
+              m.cur = bv.v;
+              m.curAuto = true;
+              m.curMes = bv.mes;
+            }
+          } else if (!m.src && m.curAuto) {
+            m.curAuto = false;
+          }
         }
-        else m[mq[3]] = parseNum(el.value);
+        else {
+          m[mq[3]] = parseNum(el.value);
+          if (mq[3] === "cur") m.curAuto = false; // escrito a mano
+        }
       });
       setTimeout(function () {
         render();
