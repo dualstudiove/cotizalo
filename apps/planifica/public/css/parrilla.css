@@ -2532,4 +2532,149 @@
       flex-direction: column;
     }
   }
+
+  /* ===== Avance de objetivos (círculos) ===== */
+  .ring {
+    width: 54px;
+    height: 54px;
+    flex: none;
+  }
+  .ring .rt {
+    fill: none;
+    stroke: var(--line-2);
+    stroke-width: 5;
+  }
+  .ring .rv {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 5;
+    stroke-linecap: round;
+  }
+  .ring.ok .rv {
+    stroke: var(--ok);
+  }
+  .ring.bad .rv {
+    stroke: var(--danger);
+  }
+  .ring text {
+    fill: var(--ink);
+    font-size: 12.5px;
+    font-weight: 700;
+    font-family: var(--font-display);
+  }
+  .ring.ok text {
+    fill: var(--ok);
+    font-size: 16px;
+  }
+  .gtiles,
+  .gms {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 10px;
+  }
+  .gms {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  .gtile,
+  .gm {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    min-width: 0;
+  }
+  .gm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .gm-top {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .gt-b {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    align-items: flex-start;
+  }
+  .gt-h {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .gt-h b {
+    overflow-wrap: anywhere;
+  }
+  .gt-v {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .gt-v b {
+    font-family: var(--font-display);
+    font-size: 17px;
+    color: var(--ink);
+  }
+  .gm .mut {
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+  .gm-months {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .gmm {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .gmm-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  .gmm .in {
+    padding: 5px 8px;
+    font-size: 13px;
+  }
+  .gmm .rv {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .sdot {
+    display: inline-flex;
+    color: var(--sc);
+  }
+  .sdot .sti {
+    --sbg: var(--surface-2);
+  }
+  .gv-theme.big {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .ms-det summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--ink-2);
+    padding: 4px 0;
+  }
+  .ms-det[open] summary {
+    margin-bottom: 6px;
+  }
 }

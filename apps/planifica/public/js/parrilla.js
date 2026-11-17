@@ -1132,6 +1132,12 @@
     ["reproducciones", "Reproducciones del mes"],
     ["interacciones", "Interacciones del mes"],
     ["publicaciones", "Publicaciones del mes"],
+    ["prom_likes", "Likes promedio por post"],
+    ["prom_comentarios", "Comentarios promedio por post"],
+    ["prom_guardados", "Guardados promedio por post"],
+    ["prom_compartidos", "Compartidos promedio por post"],
+    ["prom_alcance", "Alcance promedio por post"],
+    ["prom_interacciones", "Interacciones promedio por post"],
   ];
   function srcLabel(k) {
     for (var i = 0; i < SRC.length; i++) if (SRC[i][0] === k) return SRC[i][1];
@@ -1141,6 +1147,17 @@
     if (!src || src === "manual") return null;
     var key = monthKey(y, mi);
     if (key > todayStr().slice(0, 7)) return null;
+    if (src.indexOf("prom_") === 0) {
+      var k = src.slice(5), n = 0, t = 0;
+      allPosts().forEach(function (p) {
+        var x = igMet(p);
+        if (p.status === "publicado" && hasIg(p) && inMonth(p, y, mi) && x && x.m && x.m[k] != null) {
+          n++;
+          t += x.m[k];
+        }
+      });
+      return n ? Math.round(t / n) : null;
+    }
     if (src === "publicaciones") {
       return allPosts().filter(function (p) {
         return p.status === "publicado" && hasIg(p) && inMonth(p, y, mi);
@@ -1179,18 +1196,18 @@
         'name" type="text" placeholder="Ej. Seguidores" value="' + esc(m.name || "") +
         '" autocomplete="off"></div>' +
         (pl === "ig"
-          ? '<div class="fld"><label for="mf-' + uid + '-src">Valor real</label><select class="in" id="mf-' + uid +
+          ? '<div class="fld"><label for="mf-' + uid + '-src">El valor real sale de</label><select class="in" id="mf-' + uid +
             '-src" data-mf="' + key + 'src">' + SRC.map(function (o) {
               return '<option value="' + o[0] + '"' + ((m.src || "manual") === o[0] ? " selected" : "") + ">" +
-                (o[0] === "manual" ? "A mano" : o[1]) + "</option>";
+                (o[0] === "manual" ? "Lo escribo a mano" : "Instagram: " + o[1].charAt(0).toLowerCase() + o[1].slice(1)) + "</option>";
             }).join("") + "</select></div>"
           : "") +
-        '<div class="fld"><label for="mf-' + uid + '-cur">Actual</label><input class="in" id="mf-' +
+        '<div class="fld"><label for="mf-' + uid + '-cur">Hoy</label><input class="in" id="mf-' +
         uid + '-cur" data-mf="' + key +
         'cur" type="text" inputmode="decimal" placeholder="1.200" value="' + esc(valStr(m.cur)) +
         '" autocomplete="off"></div>' +
         '<div class="fld"><label for="mf-' + uid +
-        '-tar">Objetivo</label><input class="in" id="mf-' + uid + '-tar" data-mf="' + key +
+        '-tar">Meta del trimestre</label><input class="in" id="mf-' + uid + '-tar" data-mf="' + key +
         'tar" type="text" inputmode="decimal" placeholder="2.000" value="' + esc(valStr(m.tar)) +
         '" autocomplete="off"></div>' +
         '<div class="del">' + (S.mdel === uid
@@ -1221,6 +1238,12 @@
       if (ms.warn) {
         h +=
           '<p class="warn-note">Con este ajuste los otros meses tendrían que retroceder. Revisa el número.</p>';
+      }
+      if (edit) {
+        h += '<details class="ms-det"' + (ms.pm >= 0 ? " open" : "") + "><summary>Metas de cada mes: " +
+          [0, 1, 2].map(function (j) {
+            return cap(MON3[qn * 3 + j]) + " " + fmtNum(ms.end[j], ms.d);
+          }).join(" · ") + ' <span class="mut">(ajustar)</span></summary>';
       }
       for (var i = 0; i < 3; i++) {
         var mi = qn * 3 + i,
@@ -1262,20 +1285,23 @@
         }
         h += "</div>";
       }
+      if (edit) h += "</details>";
     }
     return h + "</div>";
   }
   function quarterMetrics(gid, g, edit, y, qn) {
     var hc = hitCount(g, y, qn);
-    var h = '<div class="fld"><span class="lbl">Métricas del trimestre por plataforma</span>';
-    h += '<p class="hint" style="min-height:0">' +
-      (hc.tot
-        ? '<span class="hits"><b>' + hc.ok + " de " + hc.tot + "</b> hitos cumplidos</span>"
-        : "<span>Define el valor actual y el objetivo; los hitos mensuales se calculan solos.</span>") +
-      "</p>";
+    var h = '<div class="fld"><span class="lbl">Metas del trimestre</span>';
+    if (!edit) {
+      h += '<p class="hint" style="min-height:0">' +
+        (hc.tot
+          ? '<span class="hits"><b>' + hc.ok + " de " + hc.tot + "</b> hitos cumplidos</span>"
+          : "<span>Define el valor actual y el objetivo; los hitos mensuales se calculan solos.</span>") +
+        "</p>";
+    }
     if (edit) {
       h +=
-        '<p class="muted" style="font-size:12.5px">Los hitos crecen de forma compuesta: el primer mes es el más lento. Si ajustas el crecimiento de un mes, los otros dos se recalculan para llegar al mismo objetivo.</p>';
+        '<p class="muted" style="font-size:12.5px">Para cada meta: dónde está hoy, a dónde quieres llegar al cierre del trimestre y de dónde sale el valor real. Las metas de cada mes se calculan solas.</p>';
     } else if (hc.tot && S.canWrite) {
       h +=
         '<p class="muted" style="font-size:12.5px">Escribe el valor real al cierre de cada mes para ver si se cumplió.</p>';
@@ -1360,7 +1386,163 @@
       '</div><p class="prog">' + st.total + (tgt ? " de " + tgt : "") + " posts planificados · " +
       st.pub + " publicados" +
       (st.stories ? " · " + plural(st.stories, "historia", "historias") : "") + "</p></div>" +
-      monthMsBlock(y, mi) + gNotes(id, g, edit) + "</section>";
+      gNotes(id, g, edit) + "</section>";
+  }
+  /* ---------- Avance de objetivos (Objetivos y Rendimiento) ---------- */
+  // Métricas «de nivel» (seguidores, o lo que se escriba a mano): el avance del mes va desde la meta del mes
+  // anterior (o el valor actual) hasta la meta del mes. Métricas «del mes» (alcance, promedios…): real ÷ meta.
+  function isLevel(m) {
+    return !m.src || m.src === "manual" || m.src === "seguidores";
+  }
+  function clampPct(v) {
+    return v == null || !isFinite(v) ? null : Math.max(0, Math.min(100, Math.round(v)));
+  }
+  function monthProgress(m, i, ms, y, mi) {
+    var real = hasNum(m.real && m.real[i]) ? Number(m.real[i]) : null, target = ms.end[i], pct = null;
+    if (real != null) {
+      if (isLevel(m)) {
+        var base = i ? ms.end[i - 1] : Number(m.cur);
+        pct = target === base ? (real >= target ? 100 : 0) : (real - base) / (target - base) * 100;
+      } else pct = target ? real / target * 100 : null;
+    }
+    return { real: real, target: target, pct: clampPct(pct), st: msStatus(m, i, ms, y, mi) };
+  }
+  function quarterProgress(m, ms, y, qn) {
+    var qs = qStatus(m, y, qn), last = -1;
+    for (var i = 0; i < 3; i++) if (hasNum(m.real && m.real[i])) last = i;
+    var real = last >= 0 ? Number(m.real[last]) : null;
+    // Del mes (alcance, promedios…): el último mes con dato contra la meta del trimestre, la misma que se muestra.
+    var pct = isLevel(m) ? qs.pct : (real != null && ms.end[2] ? real / ms.end[2] * 100 : null);
+    if (qs.k === "ok") pct = 100;
+    return { real: real, target: ms.end[2], pct: clampPct(pct), st: qs };
+  }
+  /** Círculo de avance. Verde con ✓ si se cumplió; rojo si el periodo terminó sin cumplirse. */
+  function ring(pct, k) {
+    var r = 21, c = 2 * Math.PI * r, p = pct == null ? 0 : pct;
+    var cls = k === "ok" ? " ok" : k === "bad" || k === "miss" ? " bad" : "";
+    var center = k === "ok" ? "✓" : pct == null ? "–" : pct + "%";
+    return '<svg class="ring' + cls + '" viewBox="0 0 54 54" role="img" aria-label="' +
+      (pct == null ? "Sin datos" : pct + " % de avance") + '"><circle class="rt" cx="27" cy="27" r="' + r +
+      '"/>' + (p > 0
+        ? '<circle class="rv" cx="27" cy="27" r="' + r + '" stroke-dasharray="' + (c * p / 100).toFixed(1) + " " +
+          c.toFixed(1) + '" transform="rotate(-90 27 27)"/>'
+        : "") + '<text x="27" y="31.5" text-anchor="middle">' + center +
+      "</text></svg>";
+  }
+  var ST_OF = { ok: "publicado", bad: "bad", run: "produccion", pend: "idea", miss: "bad" };
+  function stDot(st) {
+    var c = { ok: "st-listo", bad: "st-bad", run: "st-produccion", pend: "st-idea", miss: "st-bad" }[st.k];
+    return '<span class="sdot ' + c + '" title="' + esc(st.t) + '">' + stIcon(ST_OF[st.k]) + "</span>";
+  }
+  function goalTile(o) {
+    return '<div class="gtile">' + ring(o.pct, o.st.k) + '<div class="gt-b"><div class="gt-h">' +
+      (o.pl ? '<span class="pl">' + o.pl + "</span>" : "") + "<b>" + esc(o.name) + "</b></div>" +
+      '<div class="gt-v">' + (o.real == null ? "<span>Sin datos aún</span>" : "<b>" + o.realTxt + "</b>") +
+      " <span>de " + o.targetTxt + "</span></div>" + mpill(o.st) + "</div></div>";
+  }
+  /** Las metas de un periodo como tarjetas con círculo: métricas de IG/TT y la meta de posts del mes. */
+  function goalTiles(y, m0, quarter) {
+    var qn = Math.floor(m0 / 3), qg = S.goals.get("q-" + y + "-" + (qn + 1)) || {}, tiles = [], i = m0 - qn * 3;
+    ["ig", "tt"].forEach(function (pl) {
+      metricList(qg, pl).forEach(function (m0b) {
+        var m = effM(m0b, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin);
+        if (!ms) return;
+        var pr = quarter ? quarterProgress(m, ms, y, qn) : monthProgress(m, i, ms, y, m0);
+        tiles.push(goalTile({
+          pl: PLAT_ABBR[pl],
+          name: m.name || "Sin nombre",
+          pct: pr.pct,
+          st: pr.st,
+          real: pr.real,
+          realTxt: fmtNum(pr.real, ms.d),
+          targetTxt: fmtNum(pr.target, ms.d),
+        }));
+      });
+    });
+    // Meta de posts: publicados contra la meta del mes (o la suma de los tres meses).
+    var months = quarter ? [qn * 3, qn * 3 + 1, qn * 3 + 2] : [m0], tgt = 0, pub = 0, ended = true, started = false;
+    months.forEach(function (mi) {
+      var g = S.goals.get("m-" + monthKey(y, mi)) || {};
+      tgt += Number(g.postTarget) || 0;
+      pub += stats(y, mi).pub;
+      if (!monthEnded(y, mi)) ended = false;
+      if (monthKey(y, mi) <= todayStr().slice(0, 7)) started = true;
+    });
+    if (tgt) {
+      var k = pub >= tgt ? "ok" : ended ? "bad" : started ? "run" : "pend";
+      tiles.push(goalTile({
+        name: "Posts publicados",
+        pct: clampPct(pub / tgt * 100),
+        st: { k: k, t: { ok: "Cumplido", bad: "No cumplido", run: "En curso", pend: "Pendiente" }[k] },
+        real: pub,
+        realTxt: fmtNum(pub),
+        targetTxt: fmtNum(tgt),
+      }));
+    }
+    return tiles;
+  }
+  /** Para Rendimiento: las metas del mes o del trimestre, simplificadas. */
+  function goalsSummary(y, m0, quarter) {
+    var tiles = goalTiles(y, m0, quarter), qn = Math.floor(m0 / 3);
+    var title = quarter ? "Objetivos del trimestre T" + (qn + 1) : "Objetivos de " + MONTHS[m0].toLowerCase();
+    var h = '<section class="card"><div class="card-h"><h3>' + title +
+      '</h3><a class="btn sm" href="#objetivos">Ver objetivos</a></div>';
+    if (!tiles.length) {
+      return h + '<p class="gv-empty">Este periodo no tiene metas con números. ' +
+        (S.canWrite ? "Defínelas en la pestaña Objetivos." : "") + "</p></section>";
+    }
+    return h + '<div class="gtiles">' + tiles.join("") + "</div></section>";
+  }
+
+  /** Objetivos (lectura): una tarjeta por métrica con su avance del trimestre y los tres meses. */
+  function metricRead(gid, pl, m0, y, qn) {
+    var m = effM(m0, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin), key = gid + "|" + pl + "|" + m.id + "|";
+    var src = m.src && m.src !== "manual" && pl === "ig"
+      ? '<span class="auto">' + IG_SVG + "Se llena solo</span>"
+      : '<span class="auto">Se escribe a mano</span>';
+    if (!ms) {
+      return '<div class="gm"><div class="gt-h"><span class="pl">' + PLAT_ABBR[pl] + "</span><b>" +
+        esc(m.name || "Sin nombre") + '</b></div><p class="gv-empty">Falta el valor actual o la meta. Pulsa «Editar».</p></div>';
+    }
+    var q = quarterProgress(m, ms, y, qn);
+    var h = '<div class="gm"><div class="gm-top">' + ring(q.pct, q.st.k) + '<div class="gt-b"><div class="gt-h"><span class="pl">' +
+      PLAT_ABBR[pl] + "</span><b>" + esc(m.name || "Sin nombre") + "</b></div>" +
+      '<div class="mut">De ' + fmtNum(Number(m.cur), ms.d) + " a <b>" + fmtNum(Number(m.tar), ms.d) + "</b> · " + src + "</div>" +
+      mpill(q.st) + '</div></div><div class="gm-months">';
+    for (var i = 0; i < 3; i++) {
+      var mi = qn * 3 + i, pr = monthProgress(m, i, ms, y, mi), auto = m._auto && m._auto[i];
+      var realHtml;
+      if (S.canWrite && !auto) {
+        realHtml = '<label class="sr" for="mr-' + m.id + "-" + i + '">Valor real de ' + MONTHS[mi].toLowerCase() +
+          '</label><input class="in" id="mr-' + m.id + "-" + i + '" data-mreal="' + key + i +
+          '" type="text" inputmode="decimal" placeholder="Real" value="' + esc(valStr(pr.real)) + '" autocomplete="off">';
+      } else {
+        realHtml = '<span class="rv">' + (pr.real == null ? "–" : fmtNum(pr.real, ms.d)) + "</span>";
+      }
+      h += '<div class="gmm"><div class="gmm-h"><span>' + cap(MON3[mi]) + "</span>" + stDot(pr.st) + "</div>" +
+        '<span class="mut">meta ' + fmtNum(pr.target, ms.d) + "</span>" + realHtml + "</div>";
+    }
+    return h + "</div></div>";
+  }
+
+  function monthCardRead(y, mi) {
+    var id = "m-" + monthKey(y, mi), g = S.goals.get(id) || {}, st = stats(y, mi), tgt = Number(g.postTarget) || 0;
+    var bar = FORMAT_ORDER.filter(function (f) {
+      return st.by[f];
+    }).map(function (f) {
+      return '<i class="f-' + f + '" style="width:' + (st.by[f] / st.total * 100) + '%" title="' +
+        FORMATS[f].plural + ": " + st.by[f] + '"></i>';
+    }).join("");
+    var objs = lines(g.objectives);
+    return '<section class="card gmonth"><div class="card-h"><h3>' + MONTHS[mi] +
+      '</h3><button class="btn sm ghost" type="button" data-act="gocal" data-m="' + mi + '">Calendario</button></div>' +
+      (g.theme ? '<p class="gv-theme">' + esc(g.theme) + "</p>" : "") +
+      (objs.length ? gObjs(id, g, false) : "") +
+      (!g.theme && !objs.length ? '<p class="gv-empty">Sin tema ni objetivos.</p>' : "") +
+      '<div class="fld"><div class="bar" aria-hidden="true">' + bar + '</div><p class="prog"><b>' + st.pub + "</b> publicados" +
+      (tgt ? " de " + tgt : "") + " · " + st.total + " planificados" +
+      (st.stories ? " · " + plural(st.stories, "historia", "historias") : "") + "</p></div>" +
+      gNotes(id, g, false) + "</section>";
   }
   function viewObj() {
     var y = S.cy,
@@ -1372,18 +1554,49 @@
     h += '<div class="gbar"><p class="muted">' +
       (edit
         ? "Editando. Los cambios se guardan solos."
-        : (S.canWrite ? "Pulsa «Editar» para cambiar los objetivos." : "Solo lectura.")) +
+        : (S.canWrite ? "Pulsa «Editar» para definir el tema, los objetivos y las metas." : "Solo lectura.")) +
       "</p>" +
       (S.canWrite
         ? '<button class="btn' + (edit ? " primary" : "") +
           '" type="button" data-act="goalsedit">' + (edit ? "Listo" : "Editar") + "</button>"
         : "") +
       "</div>";
-    h += '<section class="card"><div class="card-h"><h3>Trimestre T' + (qn + 1) + "</h3></div>" +
-      gTheme(qid, qg, edit, "Tema del trimestre") + gObjs(qid, qg, edit) +
-      quarterMetrics(qid, qg, edit, y, qn) + gNotes(qid, qg, edit) +
-      '</section><div class="goal-grid">';
-    for (var i = 0; i < 3; i++) h += monthGoalCard(y, qn * 3 + i, edit);
+    if (edit) {
+      h += '<section class="card"><div class="card-h"><h3>Trimestre T' + (qn + 1) + "</h3></div>" +
+        gTheme(qid, qg, edit, "Tema del trimestre") + gObjs(qid, qg, edit) +
+        quarterMetrics(qid, qg, edit, y, qn) + gNotes(qid, qg, edit) +
+        '</section><div class="goal-grid">';
+      for (var i = 0; i < 3; i++) h += monthGoalCard(y, qn * 3 + i, edit);
+      main.innerHTML = h + "</div>";
+      return;
+    }
+    // Lectura: primero el trimestre (tema, objetivos y metas con su avance), luego los tres meses.
+    var metrics = [];
+    ["ig", "tt"].forEach(function (pl) {
+      metricList(qg, pl).forEach(function (m) {
+        metrics.push(metricRead(qid, pl, m, y, qn));
+      });
+    });
+    var qObjs = lines(qg.objectives);
+    var empty = !qg.theme && !qObjs.length && !metrics.length;
+    h += '<section class="card"><div class="card-h"><h3>Trimestre T' + (qn + 1) + "</h3></div>";
+    if (empty) {
+      h += '<div class="empty" style="border:0;padding:18px 8px"><h3>Aún no hay objetivos para este trimestre</h3>' +
+        "<p>Define un tema, los objetivos y las metas con números (seguidores, alcance, likes promedio…). Las de Instagram se llenan solas.</p>" +
+        (S.canWrite ? '<div class="acts"><button class="btn primary" type="button" data-act="goalsedit">Definir objetivos</button></div>' : "") +
+        "</div>";
+    } else {
+      if (qg.theme) h += '<p class="gv-theme big">' + esc(qg.theme) + "</p>";
+      if (qObjs.length) h += gObjs(qid, qg, false);
+      h += metrics.length
+        ? '<div class="fld"><span class="lbl">Metas</span><div class="gms">' + metrics.join("") + "</div>" +
+          (S.canWrite ? '<p class="hint" style="min-height:0"><span>Las que se escriben a mano: anota el valor real al cierre de cada mes.</span></p>' : "") +
+          "</div>"
+        : '<p class="gv-empty">Sin metas con números. ' + (S.canWrite ? "Pulsa «Editar» para añadirlas." : "") + "</p>";
+      h += gNotes(qid, qg, false);
+    }
+    h += '</section><div class="goal-grid">';
+    for (var j = 0; j < 3; j++) h += monthCardRead(y, qn * 3 + j);
     main.innerHTML = h + "</div>";
   }
 
@@ -2533,6 +2746,7 @@
       kpi("Tasa de interacción", rate == null ? "–" : fmtNum(rate, 1) + " %", deltaHtml(rate, rateP, r.etiqueta),
         "interacciones ÷ alcance") +
       "</section>";
+    h += goalsSummary(S.cy, resQ() ? Math.floor(S.cm / 3) * 3 : S.cm, resQ());
     if (L.loading) h += '<p class="muted">Cargando las cifras de la cuenta…</p>';
     if (L.error) h += '<p class="warn-note">' + esc(L.error) + "</p>";
     // Evolución
