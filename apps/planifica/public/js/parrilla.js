@@ -659,11 +659,10 @@
               (S.lgroup === x[0]) + '">' + x[1] + "</button>";
           }).join("") + "</div></div>"
         : "") +
-        '<div class="fld"><span class="lbl">Plataforma</span><div class="seg" role="group" aria-label="Plataforma">' +
+        '<div class="fld"><label for="fq-plat">Plataforma</label><select id="fq-plat" class="in" data-fsel="plat">' +
         [["all", "Todas"], ["ig", "Instagram"], ["tt", "TikTok"]].map(function (x) {
-          return '<button type="button" data-act="fplat" data-v="' + x[0] + '" aria-pressed="' +
-            (f.plat === x[0]) + '">' + x[1] + "</button>";
-        }).join("") + "</div></div>" +
+          return '<option value="' + x[0] + '"' + (f.plat === x[0] ? " selected" : "") + ">" + x[1] + "</option>";
+        }).join("") + "</select></div>" +
         '<div class="fld"><label for="fq-fmt">Formato</label><select id="fq-fmt" class="in" data-fsel="fmt"><option value="all">Todos</option>' +
         FORMAT_ORDER.map(function (k) {
           return '<option value="' + k + '"' + (f.fmt === k ? " selected" : "") + ">" +
