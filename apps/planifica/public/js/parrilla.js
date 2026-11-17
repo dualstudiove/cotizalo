@@ -1132,12 +1132,12 @@
     ["reproducciones", "Reproducciones del mes"],
     ["interacciones", "Interacciones del mes"],
     ["publicaciones", "Publicaciones del mes"],
-    ["prom_likes", "Likes promedio por post"],
-    ["prom_comentarios", "Comentarios promedio por post"],
-    ["prom_guardados", "Guardados promedio por post"],
-    ["prom_compartidos", "Compartidos promedio por post"],
-    ["prom_alcance", "Alcance promedio por post"],
-    ["prom_interacciones", "Interacciones promedio por post"],
+    ["prom_likes", "Media de likes"],
+    ["prom_comentarios", "Media de comentarios"],
+    ["prom_guardados", "Media de guardados"],
+    ["prom_compartidos", "Media de compartidos"],
+    ["prom_alcance", "Media de alcance"],
+    ["prom_interacciones", "Media de interacciones"],
   ];
   function srcLabel(k) {
     for (var i = 0; i < SRC.length; i++) if (SRC[i][0] === k) return SRC[i][1];
@@ -1189,23 +1189,54 @@
     v = autoVal(src, now.getFullYear(), now.getMonth());
     return v != null ? { v: v, mes: now.getMonth() } : null;
   }
+  /** De dónde sale una meta según su nombre, para las que nadie eligió origen (p. ej. las creadas antes). */
+  function guessSrc(name) {
+    var n = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (!n) return null;
+    if (/media|promedio/.test(n)) {
+      if (/like/.test(n)) return "prom_likes";
+      if (/coment/.test(n)) return "prom_comentarios";
+      if (/guardad/.test(n)) return "prom_guardados";
+      if (/compartid/.test(n)) return "prom_compartidos";
+      if (/alcance/.test(n)) return "prom_alcance";
+      if (/interacc/.test(n)) return "prom_interacciones";
+      return null;
+    }
+    if (/seguidor/.test(n)) return "seguidores";
+    if (/alcance/.test(n)) return "alcance";
+    if (/reproducc|vistas|views/.test(n)) return "reproducciones";
+    if (/interacc/.test(n)) return "interacciones";
+    if (/publicac|posts?\b/.test(n)) return "publicaciones";
+    return null;
+  }
+  /** Origen efectivo: el elegido, o el que se deduce del nombre. «manual» = se escribe a mano. */
+  function srcOf(m, pl) {
+    if (pl !== "ig") return "manual";
+    if (m.src && m.src !== "manual") return m.src;
+    if (m.src === "manual") return "manual";
+    return guessSrc(m.name) || "manual";
+  }
+  /**
+   * La meta con sus valores reales: si viene de Instagram, el dato automático (lo escrito a mano solo cubre los
+   * meses sin dato, p. ej. antes de conectar la cuenta) y «Hoy» desde Instagram si estaba vacío.
+   */
   function effM(m, pl, y, qn) {
-    if (pl !== "ig" || !m.src || m.src === "manual") return m;
+    var src = srcOf(m, pl);
+    if (src === "manual") return m;
     var real = [], auto = [];
     for (var i = 0; i < 3; i++) {
-      var man = m.real && m.real[i];
-      if (hasNum(man)) {
-        real.push(man);
-        auto.push(false);
-      } else {
-        var a = autoVal(m.src, y, qn * 3 + i);
+      var a = autoVal(src, y, qn * 3 + i), man = m.real && m.real[i];
+      if (a != null) {
         real.push(a);
-        auto.push(a != null);
+        auto.push(true);
+      } else {
+        real.push(hasNum(man) ? man : null);
+        auto.push(false);
       }
     }
-    var extra = { real: real, _auto: auto };
+    var extra = { src: src, real: real, _auto: auto, _isAuto: true };
     if (!hasNum(m.cur)) {
-      var b = baseVal(m.src, y, qn);
+      var b = baseVal(src, y, qn);
       if (b) extra.cur = b.v;
     }
     return Object.assign({}, m, extra);
@@ -1286,7 +1317,7 @@
           '<div class="ms-meta"><b>' + fmtNum(ms.end[i], ms.d) + '</b> <span class="mut">' +
           sgnNum(ms.inc[i], ms.d) + "</span>" +
           (pinned ? '<span class="adj">ajustado</span>' : "") + "</div>" +
-          '<div class="ms-real">' + (S.canWrite
+          '<div class="ms-real">' + (S.canWrite && !m._isAuto
             ? '<label class="sr" for="mr-' + uid + "-" + i + '">Valor real al cierre de ' +
               MONTHS[mi].toLowerCase() + '</label><input class="in" id="mr-' + uid + "-" + i +
               '" data-mreal="' + key + i +
@@ -1543,12 +1574,15 @@
     for (var i = 0; i < 3; i++) {
       var mi = qn * 3 + i, pr = monthProgress(m, i, ms, y, mi), auto = m._auto && m._auto[i];
       var realHtml;
-      if (S.canWrite && !auto) {
+      if (S.canWrite && !m._isAuto) {
         realHtml = '<label class="sr" for="mr-' + m.id + "-" + i + '">Valor real de ' + MONTHS[mi].toLowerCase() +
           '</label><input class="in" id="mr-' + m.id + "-" + i + '" data-mreal="' + key + i +
           '" type="text" inputmode="decimal" placeholder="Real" value="' + esc(valStr(pr.real)) + '" autocomplete="off">';
       } else {
-        realHtml = '<span class="rv">' + (pr.real == null ? "–" : fmtNum(pr.real, ms.d)) + "</span>";
+        realHtml = '<span class="rv">' + (pr.real == null ? "–" : fmtNum(pr.real, ms.d)) + "</span>" +
+          (m._isAuto && pr.real == null && y * 12 + mi >= now.getFullYear() * 12 + now.getMonth()
+            ? '<span class="mut">se llena solo</span>'
+            : "");
       }
       h += '<div class="gmm"><div class="gmm-h"><span>' + cap(MON3[mi]) + "</span>" + stDot(pr.st) + "</div>" +
         '<span class="mut">meta ' + fmtNum(pr.target, ms.d) + "</span>" + realHtml + "</div>";
@@ -1613,7 +1647,7 @@
     h += '<section class="card"><div class="card-h"><h3>Trimestre T' + (qn + 1) + "</h3></div>";
     if (empty) {
       h += '<div class="empty" style="border:0;padding:18px 8px"><h3>Aún no hay objetivos para este trimestre</h3>' +
-        "<p>Define un tema, los objetivos y las metas con números (seguidores, alcance, likes promedio…). Las de Instagram se llenan solas.</p>" +
+        "<p>Define un tema, los objetivos y las metas con números (seguidores, alcance, media de likes…). Las de Instagram se llenan solas.</p>" +
         (S.canWrite ? '<div class="acts"><button class="btn primary" type="button" data-act="goalsedit">Definir objetivos</button></div>' : "") +
         "</div>";
     } else {
@@ -2502,7 +2536,7 @@
       var lim = ymd(pd.getFullYear(), pd.getMonth(), pd.getDate());
       r.cHasta = today;
       r.cpHasta = lim < r.pHasta ? lim : r.pHasta;
-      r.etiqueta = "mismos días del " + r.etiqueta;
+      // (se compara con el mismo tramo de días, pero se nombra simplemente «mes/trimestre anterior»)
     }
     return r;
   }
@@ -2749,7 +2783,8 @@
       views = sumBy(dias, "reproducciones", r.desde, r.hasta), viewsP = sumBy(dias, "reproducciones", r.pDesde, r.cpHasta),
       inter = sumBy(dias, "interacciones", r.desde, r.hasta), interP = sumBy(dias, "interacciones", r.pDesde, r.cpHasta);
     var rate = reach ? inter / reach * 100 : null, rateP = reachP ? interP / reachP * 100 : null;
-    // Likes promedio por post: los posts publicados en el periodo (y en el mismo tramo del anterior).
+    // Media de likes por post: los posts publicados en el periodo contra los de todo el periodo anterior
+    // (una media no crece con los días, así que no se recorta al mismo tramo).
     function likesAvg(a, b) {
       var n = 0, t = 0;
       allPosts().forEach(function (p) {
@@ -2761,18 +2796,13 @@
       });
       return n ? { v: t / n, n: n } : null;
     }
-    var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.cpHasta);
-    var perPerson = reach && views ? views / reach : null;
+    var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.pHasta);
     h += '<section class="kpis">' +
       kpi("Seguidores ganados", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
         fEnd != null ? fmtNum(fEnd) + " en total" : "") +
-      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta),
-        views != null
-          ? "Cuentas que vieron tu contenido. Lo vieron " + fmtNum(views) + " veces" +
-            (perPerson ? " (" + fmtNum(perPerson, 1) + " por cuenta)" : "") + "."
-          : "Cuentas que vieron tu contenido.") +
-      kpi("Likes promedio por post", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
-        la ? "de " + plural(la.n, "post publicado", "posts publicados") : "Pega el link de los posts publicados.") +
+      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta), "Cuentas que vieron tu contenido") +
+      kpi("Media de likes", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
+        la ? "por post, de " + plural(la.n, "post publicado", "posts publicados") : "Pega el link de los posts publicados.") +
       kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta), "likes, comentarios, compartidos y guardados") +
       kpi("Tasa de interacción", rate == null ? "–" : fmtNum(rate, 1) + " %", deltaHtml(rate, rateP, r.etiqueta),
         "interacciones ÷ alcance") +
@@ -2860,7 +2890,7 @@
         var x = igMet(p);
         return x && x.encontrado;
       });
-    // Ganador: el formato con más interacciones promedio por post (solo si hay más de uno para comparar).
+    // Ganador: el formato con la mayor media de interacciones por post (solo si hay más de uno para comparar).
     var winner = null;
     if (fRows.length > 1) {
       fRows.forEach(function (f) {
@@ -2873,7 +2903,7 @@
     });
     h += '<div class="grid2 res2"><section class="card"><h3>Por formato</h3>' +
       (fRows.length
-        ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Alcance prom.</th><th>Likes prom.</th><th>Interacciones prom.</th><th>Guardados prom.</th></tr></thead><tbody>' +
+        ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Media de alcance</th><th>Media de likes</th><th>Media de interacciones</th><th>Media de guardados</th></tr></thead><tbody>' +
           fRows.map(function (f) {
             var o = fm[f];
             return '<tr' + (f === winner ? ' class="win"' : "") + '><td><span class="tag f-' + f + '">' + fIcon(f) +
@@ -2883,7 +2913,7 @@
           }).join("") + "</tbody></table></div>" +
           (winner
             ? '<p class="hint" style="min-height:0"><span><span class="crown">' + CROWN_SVG + "</span> " +
-              esc(FORMATS[winner].plural || FORMATS[winner].label) + ": el formato con más interacciones promedio por post.</span></p>"
+              esc(FORMATS[winner].plural || FORMATS[winner].label) + ": el formato con la mayor media de interacciones por post.</span></p>"
             : "")
         : '<p class="gv-empty">Se calcula con los posts que tienen métricas.</p>') +
       '</section><section class="card"><h3>Plan contra realidad</h3><div class="pvr">' +
@@ -3822,22 +3852,22 @@
           m.nameAuto = false;
         }
         else if (mq[3] === "src") {
-          m.src = el.value === "manual" ? null : el.value;
+          m.src = el.value; // «manual» se guarda tal cual: así no se vuelve a deducir del nombre
           // El nombre sigue al origen mientras nadie lo haya escrito a mano.
-          if (m.src && (!m.name || m.nameAuto)) {
+          if (m.src !== "manual" && (!m.name || m.nameAuto)) {
             m.name = srcLabel(m.src).replace(/ \(.*\)| del mes/g, "");
             m.nameAuto = true;
           }
           // «Hoy» se llena solo con el dato de Instagram (si está vacío o ya venía de Instagram).
           var gq = /^q-(\d{4})-([1-4])$/.exec(mq[0]);
-          if (m.src && gq && (!hasNum(m.cur) || m.curAuto)) {
+          if (m.src !== "manual" && gq && (!hasNum(m.cur) || m.curAuto)) {
             var bv = baseVal(m.src, Number(gq[1]), Number(gq[2]) - 1);
             if (bv) {
               m.cur = bv.v;
               m.curAuto = true;
               m.curMes = bv.mes;
             }
-          } else if (!m.src && m.curAuto) {
+          } else if (m.src === "manual" && m.curAuto) {
             m.curAuto = false;
           }
         }
