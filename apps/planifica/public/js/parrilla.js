@@ -1498,8 +1498,11 @@
   function goalTile(o) {
     return '<div class="gtile">' + ring(o.pct, o.st.k) + '<div class="gt-b"><div class="gt-h">' +
       (o.pl ? '<span class="pl">' + o.pl + "</span>" : "") + "<b>" + esc(o.name) + "</b></div>" +
-      '<div class="gt-v">' + (o.real == null ? "<span>Sin datos aún</span>" : "<b>" + o.realTxt + "</b>") +
-      " <span>de " + o.targetTxt + "</span></div>" + mpill(o.st) + "</div></div>";
+      '<div class="gt-v">' + (o.nota
+        ? "<span>" + esc(o.nota) + "</span>"
+        : (o.real == null ? "<span>Sin datos aún</span>" : "<b>" + o.realTxt + "</b>") +
+          " <span>de " + o.targetTxt + (o.metaQ ? " (meta del trimestre)" : "") + "</span>") +
+      "</div>" + mpill(o.st) + "</div></div>";
   }
   /** Las metas de un periodo como tarjetas con círculo: métricas de IG/TT y la meta de posts del mes. */
   function goalTiles(y, m0, quarter) {
@@ -1507,7 +1510,28 @@
     ["ig", "tt"].forEach(function (pl) {
       metricList(qg, pl).forEach(function (m0b) {
         var m = effM(m0b, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin);
-        if (!ms) return;
+        if (!ms) {
+          // Sin punto de partida (o sin meta) no hay metas por mes, pero la meta se muestra igual: el valor real
+          // del periodo contra la meta del trimestre.
+          var ended = quarter ? monthEnded(y, qn * 3 + 2) : monthEnded(y, m0), real = null;
+          if (quarter) {
+            for (var j = 0; j < 3; j++) if (hasNum(m.real && m.real[j])) real = Number(m.real[j]);
+          } else if (hasNum(m.real && m.real[i])) real = Number(m.real[i]);
+          var tar = hasNum(m.tar) ? Number(m.tar) : null, d = tar != null ? decOf(tar) : 0;
+          var k = tar == null ? "pend" : real != null && real >= tar ? "ok" : ended ? (real != null ? "bad" : "miss") : real != null ? "run" : "pend";
+          tiles.push(goalTile({
+            pl: PLAT_ABBR[pl],
+            name: m.name || "Sin nombre",
+            pct: tar && real != null ? clampPct(real / tar * 100) : null,
+            st: { k: k, t: { ok: "Cumplido", bad: "No cumplido", miss: "Sin registrar", run: "En curso", pend: "Pendiente" }[k] },
+            real: real,
+            realTxt: fmtNum(real, d),
+            targetTxt: fmtNum(tar, d),
+            metaQ: !quarter,
+            nota: tar == null ? "Falta definir la meta" : null,
+          }));
+          return;
+        }
         var pr = quarter ? quarterProgress(m, ms, y, qn) : monthProgress(m, i, ms, y, m0);
         tiles.push(goalTile({
           pl: PLAT_ABBR[pl],
