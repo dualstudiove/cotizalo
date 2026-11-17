@@ -24,8 +24,18 @@ const api = crearApi((ruta) => API + ruta);
 const apiRaiz = crearApi((ruta) => BASE + ruta);
 const REFRESCO_MS = 30_000;
 
-// Para parrilla.js: dirección de una imagen de referencia (img + id)
-window.PLANIFICA = { img: `${API}/api/imagenes/`, base: BASE, cliente: CLIENTE };
+// Para parrilla.js: dirección de una imagen de referencia (img + id), métricas de redes (redes) y llamadas a la
+// API que no son de la base compartida (api: vincular, actualizar, miniaturas, resultados).
+window.PLANIFICA = {
+  img: `${API}/api/imagenes/`,
+  base: BASE,
+  cliente: CLIENTE,
+  redes: { conexiones: {}, metricas: {}, cuentaMes: {} },
+  api: (ruta, opciones) => api(ruta, opciones),
+  url: (ruta) => API + ruta,
+  /** Pide los datos de nuevo (tras vincular o actualizar métricas) y avisa a la parrilla si cambiaron. */
+  refrescar: () => refrescar().then(() => programar()),
+};
 
 let estado = null; // última respuesta completa de /api/datos
 const oyentes = { posts: [], goals: [], account: [] };
@@ -97,6 +107,11 @@ async function refrescar() {
   }
   if (r.sin_cambios) return;
   estado = r;
+  window.PLANIFICA.redes = {
+    conexiones: r.redes || {},
+    metricas: r.metricas || {},
+    cuentaMes: r.cuentaMes || {},
+  };
   pintarCabecera();
   avisar();
 }

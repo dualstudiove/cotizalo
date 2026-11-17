@@ -88,7 +88,7 @@ function pintarClientes() {
     } Nuevo cliente</button></div>
     ${
       D.clientes.length
-        ? `<div class="tw"><table class="t"><thead><tr><th>Cliente</th><th>Dirección</th><th class="right">Publicaciones</th><th class="right">Imágenes</th><th>Estado</th><th></th></tr></thead><tbody>
+        ? `<div class="tw"><table class="t"><thead><tr><th>Cliente</th><th>Dirección</th><th class="right">Publicaciones</th><th class="right">Imágenes</th><th>Instagram</th><th>Estado</th><th></th></tr></thead><tbody>
       ${
           D.clientes.map((c) =>
             `<tr class="${c.activo ? "" : "off"}"><td><b>${
@@ -101,12 +101,13 @@ function pintarClientes() {
         <td class="right" data-l="Imágenes:">${mb(c.uso_bytes)} <span class="muted small">de ${
               mb(D.tope_bytes)
             }</span></td>
+        <td data-l="Instagram:">${insta(c)}</td>
         <td><button class="badge ${
               c.activo ? "ok" : "off"
             }" style="border:0" data-act="estado" data-id="${c.id}">${
               c.activo ? "Activo" : "Archivado"
             }</button></td>
-        <td class="acts"><button class="btn btn-sm" data-act="editar" data-id="${c.id}">Editar</button> <button class="btn btn-sm" data-act="importar" data-id="${c.id}" title="Importar una Parrilla de Contenido">Importar</button> <button class="btn btn-sm btn-danger btn-icon" data-act="borrar" data-id="${c.id}" aria-label="Eliminar ${
+        <td class="acts"><button class="btn btn-sm" data-act="editar" data-id="${c.id}">Editar</button> <button class="btn btn-sm" data-act="instagram" data-id="${c.id}">Instagram</button> <button class="btn btn-sm" data-act="importar" data-id="${c.id}" title="Importar una Parrilla de Contenido">Importar</button> <button class="btn btn-sm btn-danger btn-icon" data-act="borrar" data-id="${c.id}" aria-label="Eliminar ${
               esc(c.nombre)
             }">${icon("trash")}</button></td></tr>`
           ).join("")
@@ -120,10 +121,85 @@ function pintarClientes() {
   sec.querySelectorAll("[data-act]").forEach((b) =>
     b.addEventListener("click", () => {
       const c = D.clientes.find((x) => x.id === b.dataset.id);
-      ({ estado: estadoCliente, editar: formCliente, importar: importar, borrar: borrarCliente })
+      ({
+        estado: estadoCliente,
+        editar: formCliente,
+        instagram: formInstagram,
+        importar: importar,
+        borrar: borrarCliente,
+      })
         [b.dataset.act](c, b);
     })
   );
+}
+
+// ── Instagram (métricas) ──
+const fecha = (ms) =>
+  ms
+    ? new Date(ms).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "nunca";
+function insta(c) {
+  const i = c.instagram;
+  if (!i) return '<span class="muted small">Sin conectar</span>';
+  return `<span class="badge ${i.estado === "error" ? "bad" : "ok"}" title="${
+    esc(i.error || `Última actualización: ${fecha(i.sincronizado_en)}`)
+  }">@${esc(i.usuario)}</span>`;
+}
+
+function formInstagram(c) {
+  const i = c.instagram;
+  const estado = i
+    ? `<div class="notice ${i.estado === "error" ? "bad" : "ok"}">${icon(i.estado === "error" ? "warn" : "check")}<div>
+        ${i.estado === "error" ? `<b>Hay que volver a conectarla.</b> ${esc(i.error || "")}` : `Conectada como <b>@${esc(i.usuario)}</b>.`}
+        <br><span class="small">Última actualización: ${esc(fecha(i.sincronizado_en))}${
+      i.token_vence
+        ? ` · El token se renueva solo (vence el ${esc(new Date(i.token_vence).toLocaleDateString("es"))} si no se renueva).`
+        : ""
+    }</span></div></div>`
+    : "";
+  const m = modal({
+    titulo: `Instagram de ${c.nombre}`,
+    html: `${estado}
+      <p class="small" style="margin-top:12px">${i ? "Para cambiar la cuenta o arreglar la conexión, pega un token nuevo." : "Pega el token de la cuenta de Instagram del cliente. Planifica traerá sus métricas cada mañana."}</p>
+      <ol class="small muted" style="margin:6px 0 12px 18px;line-height:1.6">
+        <li>En la app de Meta, ve a <b>Roles de la app → Evaluadores de Instagram</b> y agrega la cuenta. Acepta la invitación desde esa cuenta, en Configuración → Apps y sitios web.</li>
+        <li>En la configuración del producto de Instagram, pulsa <b>Generar token</b> junto a la cuenta y cópialo.</li>
+      </ol>
+      <div class="field"><label for="igt">Token</label><textarea id="igt" rows="3" autocomplete="off" spellcheck="false" placeholder="IGAA…"></textarea>
+      <span class="hint">Se guarda cifrado y nadie lo puede volver a ver, ni siquiera tú.</span></div>`,
+    acciones: [
+      ...(i
+        ? [{
+          texto: "Desconectar",
+          clase: "btn-danger",
+          onClick: async (cerrar, b) => {
+            if (!(await confirmar(`¿Desconectar @${i.usuario}? Las métricas ya guardadas se conservan.`, { ok: "Desconectar" }))) return;
+            await conBoton(b, async () => {
+              await api(`/api/admin/clientes/${c.id}/redes/ig`, { method: "DELETE" });
+              cerrar();
+              toast("Instagram desconectado", "ok");
+              await recargar();
+            });
+          },
+        }]
+        : []),
+      { texto: "Cancelar", onClick: (cerrar) => cerrar() },
+      {
+        texto: i ? "Guardar token" : "Conectar",
+        clase: "btn-primary",
+        onClick: (cerrar, b) =>
+          conBoton(b, async () => {
+            const r = await api(`/api/admin/clientes/${c.id}/redes/ig`, {
+              method: "PUT",
+              body: { token: $("#igt", m.el).value },
+            });
+            cerrar();
+            toast(`Conectado como @${r.usuario}`, "ok");
+            await recargar();
+          }),
+      },
+    ],
+  });
 }
 
 function formCliente(c) {

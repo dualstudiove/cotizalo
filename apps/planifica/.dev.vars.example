@@ -5,3 +5,7 @@ SESSION_SECRET=cambia-esto-por-un-texto-largo-y-aleatorio-de-32-o-mas-caracteres
 # Para tener un administrador en local (se crea solo al arrancar):
 # SUPER_EMAIL=admin@dualstudio.test
 # SUPER_PASSWORD=Admin12345
+# Métricas de Instagram (opcional): clave para cifrar los tokens; si falta, se usa SESSION_SECRET.
+# TOKENS_KEY=otro-texto-largo-y-aleatorio
+# Para probar sin Instagram real, una API simulada:
+# IG_API_BASE=http://localhost:9911

@@ -452,7 +452,7 @@
   }
 
   /* ---------- Routing ---------- */
-  var LISTS = ["lista", "calendario", "objetivos", "pauta"];
+  var LISTS = ["lista", "calendario", "objetivos", "pauta", "resultados"];
   function route() {
     var h = location.hash.replace(/^#/, "");
     if (h.indexOf("post-") === 0) {
@@ -508,8 +508,12 @@
     S.cy = y;
     S.selDay = null;
   }
+  /** Objetivos y Resultados por trimestre avanzan de 3 en 3 meses. */
+  function isQ() {
+    return S.view === "objetivos" || (S.view === "resultados" && S.resPer === "q");
+  }
   function monthBar() {
-    var q = S.view === "objetivos", qn = Math.floor(S.cm / 3);
+    var q = isQ(), qn = Math.floor(S.cm / 3);
     var title = q
       ? ("T" + (qn + 1) + " <span>" + S.cy + "</span>")
       : (MONTHS[S.cm] + " <span>" + S.cy + "</span>");
@@ -781,7 +785,7 @@
       '<div><div class="t"><a class="rlink" href="#post-' + esc(p.id) + '" draggable="false">' +
       (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a></div>" +
       '<div class="meta"><span class="tag">' + fIcon(p.format) + f.label + "</span>" +
-      (pl ? '<span class="pl">' + pl + "</span>" : "") + driveLink(p) + "</div></div>" +
+      (pl ? '<span class="pl">' + pl + "</span>" : "") + driveLink(p) + igSummary(p) + "</div></div>" +
       stSelect(p) + "</div>";
   }
 
@@ -1105,8 +1109,8 @@
   function hitCount(g, y, qn) {
     var tot = 0, ok = 0;
     ["ig", "tt"].forEach(function (pl) {
-      metricList(g, pl).forEach(function (m) {
-        var ms = calcMilestones(m.cur, m.tar, m.pin);
+      metricList(g, pl).forEach(function (m0) {
+        var m = effM(m0, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin);
         if (!ms) return;
         for (var i = 0; i < 3; i++) {
           tot++;
@@ -1116,7 +1120,51 @@
     });
     return { tot: tot, ok: ok };
   }
-  function metricCard(gid, g, pl, m, edit, y, qn) {
+  /* Métricas de objetivos que se llenan solas desde Instagram (m.src). El valor real que alguien escriba a mano
+     manda sobre el automático. */
+  var SRC = [
+    ["manual", "Manual"],
+    ["seguidores", "Seguidores (al cierre del mes)"],
+    ["alcance", "Alcance del mes"],
+    ["reproducciones", "Reproducciones del mes"],
+    ["interacciones", "Interacciones del mes"],
+    ["publicaciones", "Publicaciones del mes"],
+  ];
+  function srcLabel(k) {
+    for (var i = 0; i < SRC.length; i++) if (SRC[i][0] === k) return SRC[i][1];
+    return "";
+  }
+  function autoVal(src, y, mi) {
+    if (!src || src === "manual") return null;
+    var key = monthKey(y, mi);
+    if (key > todayStr().slice(0, 7)) return null;
+    if (src === "publicaciones") {
+      return allPosts().filter(function (p) {
+        return p.status === "publicado" && hasIg(p) && inMonth(p, y, mi);
+      }).length;
+    }
+    var cm = (RD().cuentaMes.ig || {})[key];
+    if (!cm || cm[src] == null) return null;
+    return cm[src];
+  }
+  function effM(m, pl, y, qn) {
+    if (pl !== "ig" || !m.src || m.src === "manual") return m;
+    var real = [], auto = [];
+    for (var i = 0; i < 3; i++) {
+      var man = m.real && m.real[i];
+      if (hasNum(man)) {
+        real.push(man);
+        auto.push(false);
+      } else {
+        var a = autoVal(m.src, y, qn * 3 + i);
+        real.push(a);
+        auto.push(a != null);
+      }
+    }
+    return Object.assign({}, m, { real: real, _auto: auto });
+  }
+  function metricCard(gid, g, pl, m0, edit, y, qn) {
+    var m = effM(m0, pl, y, qn);
     var ms = calcMilestones(m.cur, m.tar, m.pin),
       uid = m.id,
       key = gid + "|" + pl + "|" + uid + "|",
@@ -1127,6 +1175,13 @@
         '-name">Métrica</label><input class="in" id="mf-' + uid + '-name" data-mf="' + key +
         'name" type="text" placeholder="Ej. Seguidores" value="' + esc(m.name || "") +
         '" autocomplete="off"></div>' +
+        (pl === "ig"
+          ? '<div class="fld"><label for="mf-' + uid + '-src">Valor real</label><select class="in" id="mf-' + uid +
+            '-src" data-mf="' + key + 'src">' + SRC.map(function (o) {
+              return '<option value="' + o[0] + '"' + ((m.src || "manual") === o[0] ? " selected" : "") + ">" +
+                (o[0] === "manual" ? "A mano" : o[1]) + "</option>";
+            }).join("") + "</select></div>"
+          : "") +
         '<div class="fld"><label for="mf-' + uid + '-cur">Actual</label><input class="in" id="mf-' +
         uid + '-cur" data-mf="' + key +
         'cur" type="text" inputmode="decimal" placeholder="1.200" value="' + esc(valStr(m.cur)) +
@@ -1151,7 +1206,9 @@
         '<div class="mx-sub">Actual ' +
         fmtNum(hasNum(m.cur) ? Number(m.cur) : null, ms ? ms.d : 0) + " → objetivo " +
         fmtNum(hasNum(m.tar) ? Number(m.tar) : null, ms ? ms.d : 0) +
-        (qs && qs.pct != null ? " · " + qs.pct + "% del camino" : "") + "</div>";
+        (qs && qs.pct != null ? " · " + qs.pct + "% del camino" : "") +
+        (m.src && m.src !== "manual" && pl === "ig" ? ' · <span class="auto">' + IG_SVG + "Se llena solo: " + esc(srcLabel(m.src).toLowerCase()) + "</span>" : "") +
+        "</div>";
     }
     if (!edit && S.mcol[uid]) return h + "</div>";
     if (!ms) {
@@ -1176,9 +1233,12 @@
             ? '<label class="sr" for="mr-' + uid + "-" + i + '">Valor real al cierre de ' +
               MONTHS[mi].toLowerCase() + '</label><input class="in" id="mr-' + uid + "-" + i +
               '" data-mreal="' + key + i +
-              '" type="text" inputmode="decimal" placeholder="Real" value="' + esc(valStr(real)) +
-              '" autocomplete="off">'
-            : '<span class="rv">' + (hasNum(real) ? fmtNum(Number(real), ms.d) : "–") + "</span>") +
+              '" type="text" inputmode="decimal" placeholder="' +
+              (m._auto && m._auto[i] ? fmtNum(Number(real), ms.d) + " (auto)" : "Real") + '" value="' +
+              esc(valStr(m._auto && m._auto[i] ? null : real)) + '" autocomplete="off"' +
+              (m._auto && m._auto[i] ? ' title="Viene de Instagram. Escribe un valor para reemplazarlo."' : "") + ">"
+            : '<span class="rv">' + (hasNum(real) ? fmtNum(Number(real), ms.d) : "–") +
+              (m._auto && m._auto[i] ? ' <span class="auto">auto</span>' : "") + "</span>") +
           "</div>" +
           '<div class="ms-st">' + mpill(st) + (hasNum(real) && st.k !== "ok"
             ? '<span class="mut">faltan ' + fmtNum(Math.abs(ms.end[i] - Number(real)), ms.d) +
@@ -1240,8 +1300,8 @@
       i = mi - qn * 3,
       rows = [];
     ["ig", "tt"].forEach(function (pl) {
-      metricList(qg, pl).forEach(function (m) {
-        var ms = calcMilestones(m.cur, m.tar, m.pin);
+      metricList(qg, pl).forEach(function (m0) {
+        var m = effM(m0, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin);
         if (!ms) return;
         var st = msStatus(m, i, ms, y, mi), real = m.real && m.real[i];
         rows.push(
@@ -1936,6 +1996,616 @@
     return doc.output("arraybuffer");
   }
 
+  /* ---------- Métricas de Instagram ---------- */
+  // Los datos llegan con /api/datos (conexion.js → window.PLANIFICA.redes): la conexión del cliente, las métricas
+  // de cada post vinculado y las cifras de la cuenta por mes. El dashboard pide aparte las cifras diarias.
+  function RD() {
+    return (window.PLANIFICA && window.PLANIFICA.redes) ||
+      { conexiones: {}, metricas: {}, cuentaMes: {} };
+  }
+  function igCon() {
+    return RD().conexiones.ig || null;
+  }
+  function igMet(p) {
+    var x = RD().metricas[p.id];
+    return (x && x.ig) || null;
+  }
+  var MET = {
+    alcance: "Alcance",
+    reproducciones: "Reproducciones",
+    interacciones: "Interacciones",
+    likes: "Likes",
+    comentarios: "Comentarios",
+    compartidos: "Compartidos",
+    guardados: "Guardados",
+  };
+  var MET_ORDER = ["alcance", "reproducciones", "interacciones", "likes", "comentarios", "compartidos", "guardados"];
+  function hasIg(p) {
+    return (p.platforms || []).indexOf("ig") >= 0;
+  }
+  /** Resumen corto para la Lista: alcance y likes de un post publicado. */
+  function igSummary(p) {
+    var x = igMet(p), m = x && x.m;
+    if (!m) return "";
+    var parts = [];
+    if (m.alcance != null) parts.push(fmtNum(m.alcance) + " alcance");
+    if (m.likes != null) parts.push(fmtNum(m.likes) + " likes");
+    if (m.comentarios != null) parts.push(fmtNum(m.comentarios) + " coment.");
+    return parts.length
+      ? '<span class="msum" title="Métricas de Instagram">' + IG_SVG + parts.join(" · ") + "</span>"
+      : "";
+  }
+  var IG_SVG =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="3.5"/><circle cx="8" cy="8" r="2.8"/><circle cx="11.6" cy="4.4" r=".6" fill="currentColor" stroke="none"/></svg>';
+  function minutesLeft(ts) {
+    return Math.max(0, Math.ceil((ts - Date.now()) / 60000));
+  }
+  function igUpdButton(cls) {
+    var c = igCon();
+    if (!c || !S.canWrite || c.estado === "error") return "";
+    var wait = minutesLeft(c.actualizar_desde || 0);
+    return '<button class="btn sm ' + (cls || "") + '" type="button" data-act="igupd"' +
+      (wait || S.igBusy ? " disabled" : "") + ' title="' +
+      (wait ? "Podrás volver a actualizar en " + wait + " min" : "Traer las métricas de Instagram ahora") +
+      '">' + (S.igBusy ? "Actualizando…" : "Actualizar") + "</button>";
+  }
+  function igLastTxt() {
+    var c = igCon();
+    return c && c.sincronizado_en ? "Actualizado " + relTime(c.sincronizado_en) : "Aún sin actualizar";
+  }
+  function thumbHtml(p, x, cls) {
+    if (x && x.miniatura) {
+      return '<img class="' + (cls || "mthumb") + '" src="' + window.PLANIFICA.img + esc(x.miniatura) +
+        '" alt="" loading="lazy">';
+    }
+    return '<span class="' + (cls || "mthumb") + ' ph f-' + esc(p.format) + '" aria-hidden="true">' +
+      fIcon(p.format) + "</span>";
+  }
+  /** Cuerpo de la tarjeta «Métricas de Instagram» en el detalle del post. */
+  function igCardBody(p) {
+    var c = igCon(), x = igMet(p), link = String(p.igLink || "").trim();
+    if (!c) {
+      return '<p class="muted">Este cliente aún no tiene su Instagram conectado. Un administrador puede conectarlo en <b>Clientes y equipo</b>.</p>';
+    }
+    if (c.estado === "error") {
+      return '<p class="warn-note">La conexión con @' + esc(c.usuario) +
+        " tiene un problema: " + esc(c.error || "") + " Un administrador debe volver a conectarla.</p>";
+    }
+    if (!link) {
+      return '<p class="muted">' + (p.status === "publicado"
+        ? "¿Ya está en Instagram? Pega su link arriba para ver sus métricas."
+        : "Cuando se publique, pega su link arriba para ver sus métricas.") + "</p>";
+    }
+    if (S.igLinking === p.id || (x && !x.encontrado && !x.error) || !x) {
+      return '<p class="muted">Buscando el post en @' + esc(c.usuario) + "…</p>";
+    }
+    if (!x.encontrado || !x.m) {
+      return '<p class="warn-note">' + esc(x.error || "Aún no hay métricas de este post.") + "</p>";
+    }
+    var tiles = MET_ORDER.filter(function (k) {
+      return x.m[k] != null;
+    }).map(function (k) {
+      return '<div class="mtile"><b>' + fmtNum(x.m[k]) + "</b><span>" + MET[k] + "</span></div>";
+    }).join("");
+    return '<div class="mhead">' + thumbHtml(p, x) + '<div class="mtiles">' + tiles + "</div></div>" +
+      '<p class="hint"><span>' + (x.at ? "Actualizado " + relTime(x.at) : "") +
+      (x.error ? ' · <span class="over">' + esc(x.error) + "</span>" : "") +
+      '</span><a class="btn sm ghost" href="' + esc(driveHref(link) || "#") +
+      '" target="_blank" rel="noopener noreferrer">Ver en Instagram</a></p>';
+  }
+  function paintIg(p) {
+    var card = $("#igCard");
+    if (!card) return;
+    card.hidden = !hasIg(p);
+    var body = igCardBody(p);
+    var b = $("#igBody");
+    if (b.dataset.sig !== body) {
+      b.innerHTML = body;
+      b.dataset.sig = body;
+    }
+    var act = link4upd(p) ? igUpdButton() : "";
+    var a = $("#igAct");
+    if (a.dataset.sig !== act) {
+      a.innerHTML = act;
+      a.dataset.sig = act;
+    }
+  }
+  function link4upd(p) {
+    var x = igMet(p);
+    return !!(x && x.encontrado);
+  }
+  /** Al terminar de escribir el link: se guarda y se busca el post al momento. */
+  function linkIg(id) {
+    var path = "posts/" + id;
+    flush(path);
+    S.igLinking = id;
+    paintDetail();
+    (chain[path] || Promise.resolve()).then(function () {
+      return window.PLANIFICA.api("/api/redes/vincular", {
+        method: "POST",
+        body: { publicacion_id: id, red: "ig" },
+      });
+    }).catch(function (e) {
+      toast(e.message || "No se pudo buscar el post.");
+    }).then(function () {
+      return window.PLANIFICA.refrescar();
+    }).then(function () {
+      S.igLinking = null;
+      if (S.view === "detalle") paintDetail();
+      else render();
+    });
+  }
+  function igUpdate() {
+    if (S.igBusy) return;
+    S.igBusy = true;
+    if (S.view === "detalle") paintDetail();
+    else render();
+    window.PLANIFICA.api("/api/redes/actualizar", { method: "POST", body: { red: "ig" } })
+      .then(function (r) {
+        toast(r && r.ok === false ? (r.error || "No se pudo actualizar.") : r && r.parcial
+          ? "Actualizado en parte: el resto se completa en la próxima actualización."
+          : "Métricas actualizadas");
+        S.resCache = {};
+      }, function (e) {
+        toast(e.message || "No se pudo actualizar.");
+      }).then(function () {
+        return window.PLANIFICA.refrescar();
+      }).then(function () {
+        S.igBusy = false;
+        if (S.view === "detalle") paintDetail();
+        else render();
+      });
+  }
+
+  /* Miniaturas propias: la imagen de Instagram pasa por el Worker, el navegador la achica a 320 px (WebP) y la
+     sube. Solo quien puede editar; una a la vez y un intento por post y visita. */
+  var thumbQ = [], thumbTried = {}, thumbBusy = false;
+  function ensureThumbs() {
+    if (!S.canWrite || !window.PLANIFICA || !window.PLANIFICA.url) return;
+    var ms = RD().metricas;
+    Object.keys(ms).forEach(function (id) {
+      var x = ms[id].ig;
+      if (x && x.falta_miniatura && !thumbTried[id]) {
+        thumbTried[id] = 1;
+        thumbQ.push(id);
+      }
+    });
+    runThumbs();
+  }
+  function runThumbs() {
+    if (thumbBusy || !thumbQ.length) return;
+    thumbBusy = true;
+    var id = thumbQ.shift();
+    makeThumb(id).catch(function () {}).then(function () {
+      thumbBusy = false;
+      if (thumbQ.length) runThumbs();
+      else window.PLANIFICA.refrescar();
+    });
+  }
+  function makeThumb(id) {
+    return fetch(window.PLANIFICA.url("/api/redes/miniatura-remota/" + encodeURIComponent(id) + "?red=ig"), {
+      headers: { "x-app": "1" },
+      credentials: "same-origin",
+    }).then(function (r) {
+      if (!r.ok) throw new Error("sin miniatura");
+      return r.blob();
+    }).then(function (blob) {
+      return createImageBitmap(blob);
+    }).then(function (bmp) {
+      var k = Math.min(1, 320 / Math.max(bmp.width, bmp.height)),
+        cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(bmp.width * k));
+      cv.height = Math.max(1, Math.round(bmp.height * k));
+      cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+      return new Promise(function (res) {
+        cv.toBlob(res, "image/webp", 0.8);
+      });
+    }).then(function (b) {
+      return new Promise(function (res, rej) {
+        var fr = new FileReader();
+        fr.onload = function () {
+          res(fr.result);
+        };
+        fr.onerror = rej;
+        fr.readAsDataURL(b);
+      });
+    }).then(function (datos) {
+      return window.PLANIFICA.api("/api/redes/miniatura", {
+        method: "POST",
+        body: { publicacion_id: id, red: "ig", datos: datos },
+      });
+    });
+  }
+
+  /* ---------- Resultados (dashboard) ---------- */
+  // Mes o trimestre del selector, con el periodo anterior para comparar. Las cifras diarias de la cuenta se
+  // piden solo al abrir esta pestaña (no entran en el refresco de 30 s) y se guardan en memoria.
+  function resQ() {
+    return S.resPer === "q";
+  }
+  function resRange() {
+    var y = S.cy, m0, m1;
+    if (resQ()) {
+      m0 = Math.floor(S.cm / 3) * 3;
+      m1 = m0 + 2;
+    } else m0 = m1 = S.cm;
+    var n = m1 - m0 + 1, today = todayStr();
+    var r = {
+      desde: ymd(y, m0, 1),
+      hasta: ymd(y, m1, new Date(y, m1 + 1, 0).getDate()),
+      pDesde: ymd(new Date(y, m0 - n, 1).getFullYear(), new Date(y, m0 - n, 1).getMonth(), 1),
+      pHasta: ymd(new Date(y, m0, 0).getFullYear(), new Date(y, m0, 0).getMonth(), new Date(y, m0, 0).getDate()),
+      etiqueta: resQ() ? "trimestre anterior" : "mes anterior",
+    };
+    // Periodo en curso: se compara con el mismo número de días del periodo anterior (no con el periodo entero).
+    r.cHasta = r.hasta;
+    r.cpHasta = r.pHasta;
+    if (today >= r.desde && today < r.hasta) {
+      var dias = Math.round((dateObj(today) - dateObj(r.desde)) / 864e5);
+      var pd = dateObj(r.pDesde);
+      pd.setDate(pd.getDate() + dias);
+      var lim = ymd(pd.getFullYear(), pd.getMonth(), pd.getDate());
+      r.cHasta = today;
+      r.cpHasta = lim < r.pHasta ? lim : r.pHasta;
+      r.etiqueta = "mismos días del " + r.etiqueta;
+    }
+    return r;
+  }
+  function resLoad(r) {
+    var key = "ig|" + r.pDesde + "|" + r.hasta;
+    S.resCache = S.resCache || {};
+    var c = S.resCache[key];
+    if (c) return c;
+    c = S.resCache[key] = { loading: true };
+    window.PLANIFICA.api("/api/resultados?red=ig&desde=" + r.pDesde + "&hasta=" + r.hasta).then(function (d) {
+      c.loading = false;
+      c.data = d;
+    }, function (e) {
+      c.loading = false;
+      c.error = e.message || "No se pudieron cargar los resultados.";
+      delete S.resCache[key];
+      S.resCache["err|" + key] = c;
+    }).then(function () {
+      if (S.view === "resultados") render();
+    });
+    return c;
+  }
+  function sumBy(dias, k, a, b) {
+    var t = 0, any = false;
+    dias.forEach(function (d) {
+      if (d.dia >= a && d.dia <= b && typeof d[k] === "number") {
+        t += d[k];
+        any = true;
+      }
+    });
+    return any ? t : null;
+  }
+  function lastFollowers(dias, a, b) {
+    var v = null;
+    dias.forEach(function (d) {
+      if (d.dia >= a && d.dia <= b && typeof d.seguidores === "number") v = d.seguidores;
+    });
+    return v;
+  }
+  function firstFollowers(dias, a, b) {
+    for (var i = 0; i < dias.length; i++) {
+      var d = dias[i];
+      if (d.dia >= a && d.dia <= b && typeof d.seguidores === "number") return d.seguidores;
+    }
+    return null;
+  }
+  function deltaHtml(cur, prev, label) {
+    if (cur == null || prev == null || prev === 0) {
+      return '<span class="kd">Sin datos del ' + label + "</span>";
+    }
+    var pct = Math.round((cur - prev) / Math.abs(prev) * 100);
+    var arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "=";
+    return '<span class="kd' + (pct > 0 ? " up" : pct < 0 ? " down" : "") + '">' + arrow + " " +
+      Math.abs(pct) + " % vs. " + label + "</span>";
+  }
+  function kpi(label, val, delta, hint) {
+    return '<div class="kpi"><span class="kl">' + label + "</span><b>" + val + "</b>" + (delta || "") +
+      (hint ? '<span class="kh">' + hint + "</span>" : "") + "</div>";
+  }
+
+  /* Gráfico de línea de una sola serie (una escala, sin leyenda: el título la nombra). Con hover: línea guía,
+     punto y valor del día. */
+  var CHARTS = {};
+  function lineChart(id, title, pts) {
+    var W = window.innerWidth < 640 ? 340 : 560, H = window.innerWidth < 640 ? 150 : 170, L = 44, R = 12, T = 12, B = 26;
+    var vals = pts.filter(function (p) {
+      return p.v != null;
+    });
+    if (vals.length < 2) {
+      return '<div class="chart"><h4>' + title + '</h4><p class="gv-empty">Aún no hay suficientes días con datos. Se llena a diario desde que se conectó la cuenta.</p></div>';
+    }
+    var min = Math.min.apply(null, vals.map(function (p) {
+        return p.v;
+      })),
+      max = Math.max.apply(null, vals.map(function (p) {
+        return p.v;
+      }));
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+    var pad = (max - min) * 0.1;
+    min = Math.max(0, min - pad);
+    max += pad;
+    var n = pts.length;
+    function x(i) {
+      return L + (n === 1 ? 0 : i * (W - L - R) / (n - 1));
+    }
+    function y(v) {
+      return T + (1 - (v - min) / (max - min)) * (H - T - B);
+    }
+    var d = "", pen = false;
+    pts.forEach(function (p, i) {
+      if (p.v == null) {
+        pen = false;
+        return;
+      }
+      d += (pen ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1);
+      pen = true;
+    });
+    var grid = "";
+    [0, 0.5, 1].forEach(function (f) {
+      var v = min + (max - min) * f, yy = y(v);
+      grid += '<line class="gl" x1="' + L + '" x2="' + (W - R) + '" y1="' + yy.toFixed(1) + '" y2="' +
+        yy.toFixed(1) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (yy + 3.5).toFixed(1) +
+        '" text-anchor="end">' + fmtCompact(v) + "</text>";
+    });
+    var ticks = "";
+    [0, Math.floor((n - 1) / 2), n - 1].forEach(function (i, k, arr) {
+      if (k && i === arr[k - 1]) return;
+      ticks += '<text class="ax" x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="' +
+        (k === 0 ? "start" : k === 2 ? "end" : "middle") + '">' + esc(fmtShort(pts[i].dia)) + "</text>";
+    });
+    CHARTS[id] = { pts: pts, x: x, y: y, W: W, title: title };
+    return '<div class="chart"><h4>' + title + '</h4><div class="cw"><svg viewBox="0 0 ' + W + " " + H +
+      '" role="img" aria-label="' + esc(title) + '" data-chart="' + id + '">' + grid + ticks +
+      '<path class="ln" d="' + d + '"/><line class="cx" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) +
+      '" hidden/><circle class="cd" r="4.5" cx="0" cy="0" hidden/>' +
+      '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '"/></svg>' +
+      '<div class="ctip" hidden></div></div></div>';
+  }
+  function fmtCompact(v) {
+    var a = Math.abs(v);
+    if (a >= 1e6) return fmtNum(v / 1e6, 1) + " M";
+    if (a >= 1e4) return fmtNum(v / 1e3, 0) + " mil";
+    return fmtNum(Math.round(v));
+  }
+  function chartHover(e) {
+    var svg = e.target.closest && e.target.closest("svg[data-chart]");
+    if (!svg) return;
+    var c = CHARTS[svg.dataset.chart];
+    if (!c) return;
+    var r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * c.W / r.width;
+    var best = -1, bd = 1e9;
+    c.pts.forEach(function (p, i) {
+      if (p.v == null) return;
+      var dd = Math.abs(c.x(i) - px);
+      if (dd < bd) {
+        bd = dd;
+        best = i;
+      }
+    });
+    if (best < 0) return;
+    var p = c.pts[best], cx = svg.querySelector(".cx"), cd = svg.querySelector(".cd"),
+      tip = svg.parentNode.querySelector(".ctip");
+    cx.setAttribute("x1", c.x(best));
+    cx.setAttribute("x2", c.x(best));
+    cd.setAttribute("cx", c.x(best));
+    cd.setAttribute("cy", c.y(p.v));
+    cx.hidden = cd.hidden = tip.hidden = false;
+    cx.removeAttribute("hidden");
+    cd.removeAttribute("hidden");
+    tip.innerHTML = "<b>" + fmtNum(p.v) + "</b> " + esc(fmtShort(p.dia));
+    var left = c.x(best) / c.W * r.width;
+    tip.style.left = Math.min(Math.max(0, left - 50), r.width - 110) + "px";
+  }
+  function chartLeave(e) {
+    var svg = e.target.closest && e.target.closest("svg[data-chart]");
+    if (!svg) return;
+    svg.querySelector(".cx").setAttribute("hidden", "");
+    svg.querySelector(".cd").setAttribute("hidden", "");
+    svg.parentNode.querySelector(".ctip").hidden = true;
+  }
+  document.addEventListener("pointermove", chartHover);
+  document.addEventListener("pointerout", function (e) {
+    if (e.target.classList && e.target.classList.contains("hit")) chartLeave(e);
+  });
+
+  var DOW_LONG = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  /** Mapa de calor de la audiencia: una sola tinta (más oscuro = más seguidores conectados). */
+  function heatmap(a) {
+    if (!a || a.length !== 7) {
+      return '<p class="gv-empty">Instagram da este dato una vez por semana. Aparecerá tras la próxima actualización.</p>';
+    }
+    var max = 0, min = Infinity, best = [];
+    a.forEach(function (row, d) {
+      row.forEach(function (v, h) {
+        if (v > max) max = v;
+        if (v < min) min = v;
+        best.push({ d: d, h: h, v: v });
+      });
+    });
+    if (!max) return '<p class="gv-empty">Aún no hay datos de audiencia.</p>';
+    best.sort(function (p, q) {
+      return q.v - p.v;
+    });
+    var order = [1, 2, 3, 4, 5, 6, 0], h = '<div class="hm" role="img" aria-label="Seguidores conectados por día y hora">';
+    h += '<span></span>' + Array.apply(null, Array(24)).map(function (_, i) {
+      return '<span class="hx">' + (i % 3 === 0 ? i : "") + "</span>";
+    }).join("");
+    order.forEach(function (d) {
+      h += '<span class="hy">' + DOW[dowMon(new Date(2024, 0, 7 + d))] + "</span>";
+      a[d].forEach(function (v, hr) {
+        var k = max > min ? 0.08 + 0.92 * (v - min) / (max - min) : 1;
+        h += '<i style="--k:' + (Math.round(k * 100) / 100) + '" title="' + cap(DOW_LONG[d]) + " " + hr +
+          ":00 · " + fmtNum(v) + ' seguidores conectados"></i>';
+      });
+    });
+    h += "</div>";
+    var top = best.slice(0, 3).map(function (b) {
+      return DOW_LONG[b.d] + " a las " + b.h + ":00";
+    });
+    return '<p class="hm-top"><b>Mejores momentos:</b> ' + esc(top.join(", ")) + ".</p>" + h +
+      '<p class="hint" style="min-height:0"><span>Promedio de seguidores conectados por hora (hora de Venezuela), de los últimos 30 días.</span></p>';
+  }
+
+  var SORT_KEYS = [["alcance", "Alcance"], ["interacciones", "Interacciones"], ["reproducciones", "Reproducciones"], ["guardados", "Guardados"], ["compartidos", "Compartidos"]];
+  function postDay(p, x) {
+    return (x && x.publicado_en ? String(x.publicado_en).slice(0, 10) : "") || p.date || "";
+  }
+  function viewRes() {
+    var h = notices() + monthBar();
+    h += '<div class="ptools"><div class="seg" role="group" aria-label="Red">' +
+      '<button type="button" aria-pressed="true">Instagram</button>' +
+      '<button type="button" disabled title="Próximamente">TikTok</button></div>' +
+      '<div class="seg" role="group" aria-label="Periodo">' +
+      [["m", "Mes"], ["q", "Trimestre"]].map(function (x) {
+        return '<button type="button" data-act="resper" data-v="' + x[0] + '" aria-pressed="' +
+          ((S.resPer || "m") === x[0]) + '">' + x[1] + "</button>";
+      }).join("") + "</div>" +
+      '<span class="res-upd"><span class="muted">' + esc(igLastTxt()) + "</span>" + igUpdButton() +
+      "</span></div>";
+    var c = igCon();
+    if (!c) {
+      main.innerHTML = h + '<div class="empty"><h3>Instagram no está conectado</h3><p>Cuando un administrador conecte la cuenta de este cliente en <b>Clientes y equipo</b>, aquí verás sus resultados. Las cifras se guardan desde ese día.</p></div>';
+      return;
+    }
+    if (c.estado === "error") {
+      h += '<p class="warn-note">La conexión con @' + esc(c.usuario) + " tiene un problema: " +
+        esc(c.error || "") + " Un administrador debe volver a conectarla.</p>";
+    }
+    var r = resRange(), L = resLoad(r);
+    var dias = (L.data && L.data.dias) || [];
+    // Indicadores
+    var fEnd = lastFollowers(dias, r.desde, r.hasta),
+      fPrevEnd = lastFollowers(dias, r.pDesde, r.pHasta),
+      fStart = fPrevEnd != null ? fPrevEnd : firstFollowers(dias, r.desde, r.hasta),
+      gained = fEnd != null && fStart != null ? fEnd - fStart : null,
+      fPrevStart = firstFollowers(dias, r.pDesde, r.pHasta),
+      fPrevCut = lastFollowers(dias, r.pDesde, r.cpHasta),
+      gainedPrev = fPrevCut != null && fPrevStart != null ? fPrevCut - fPrevStart : null;
+    var reach = sumBy(dias, "alcance", r.desde, r.hasta), reachP = sumBy(dias, "alcance", r.pDesde, r.cpHasta),
+      views = sumBy(dias, "reproducciones", r.desde, r.hasta), viewsP = sumBy(dias, "reproducciones", r.pDesde, r.cpHasta),
+      inter = sumBy(dias, "interacciones", r.desde, r.hasta), interP = sumBy(dias, "interacciones", r.pDesde, r.cpHasta);
+    var rate = reach ? inter / reach * 100 : null, rateP = reachP ? interP / reachP * 100 : null;
+    h += '<section class="kpis">' +
+      kpi("Seguidores ganados", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
+        fEnd != null ? fmtNum(fEnd) + " en total" : "") +
+      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta), "suma de cada día") +
+      kpi("Reproducciones", fmtNum(views), deltaHtml(views, viewsP, r.etiqueta)) +
+      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta)) +
+      kpi("Tasa de interacción", rate == null ? "–" : fmtNum(rate, 1) + " %", deltaHtml(rate, rateP, r.etiqueta),
+        "interacciones ÷ alcance") +
+      "</section>";
+    if (L.loading) h += '<p class="muted">Cargando las cifras de la cuenta…</p>';
+    if (L.error) h += '<p class="warn-note">' + esc(L.error) + "</p>";
+    // Evolución
+    var days = [], d0 = dateObj(r.desde), d1 = dateObj(r.hasta), today = todayStr();
+    for (var d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+      var k = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+      if (k > today) break;
+      days.push(k);
+    }
+    var byDay = {};
+    dias.forEach(function (x) {
+      byDay[x.dia] = x;
+    });
+    h += '<section class="card"><h3>Evolución</h3><div class="charts">' +
+      lineChart("seg", "Seguidores", days.map(function (k) {
+        return { dia: k, v: byDay[k] && typeof byDay[k].seguidores === "number" ? byDay[k].seguidores : null };
+      })) +
+      lineChart("alc", "Alcance por día", days.map(function (k) {
+        return { dia: k, v: byDay[k] && typeof byDay[k].alcance === "number" ? byDay[k].alcance : null };
+      })) + "</div></section>";
+    // Posts del periodo
+    var inPer = allPosts().filter(function (p) {
+      var x = igMet(p), day = postDay(p, x);
+      return hasIg(p) && day >= r.desde && day <= r.hasta;
+    });
+    var withM = inPer.filter(function (p) {
+      var x = igMet(p);
+      return x && x.m;
+    });
+    var sk = S.resSort || "alcance";
+    var top = withM.slice().sort(function (a, b) {
+      return (igMet(b).m[sk] || 0) - (igMet(a).m[sk] || 0);
+    }).slice(0, 10);
+    h += '<section class="card"><div class="card-h"><h3>Top posts</h3><div class="seg" role="group" aria-label="Ordenar por">' +
+      SORT_KEYS.map(function (x) {
+        return '<button type="button" data-act="ressort" data-v="' + x[0] + '" aria-pressed="' + (sk === x[0]) +
+          '">' + x[1] + "</button>";
+      }).join("") + "</div></div>";
+    if (!top.length) {
+      h += '<p class="gv-empty">Ningún post de este periodo tiene métricas todavía. Pega el link de Instagram en cada post publicado.</p>';
+    } else {
+      h += '<ol class="toplist">' + top.map(function (p, i) {
+        var x = igMet(p), m = x.m;
+        return '<li><span class="tn">' + (i + 1) + "</span>" + thumbHtml(p, x, "tthumb") +
+          '<div class="tt"><a href="#post-' + esc(p.id) + '">' + (p.title ? esc(p.title) : "<em>Sin título</em>") +
+          '</a><div class="meta"><span class="tag">' + fIcon(p.format) + (FORMATS[p.format] || FORMATS.reel).label +
+          '</span><span class="mt">' + esc(fmtShort(postDay(p, x))) + "</span></div></div>" +
+          '<div class="tv"><b>' + fmtNum(m[sk]) + "</b><span>" + MET[sk].toLowerCase() + "</span></div></li>";
+      }).join("") + "</ol>";
+    }
+    h += "</section>";
+    // Por formato y plan contra realidad
+    var fm = {};
+    withM.forEach(function (p) {
+      var f = p.format || "reel", m = igMet(p).m;
+      var o = fm[f] || (fm[f] = { n: 0, alcance: 0, interacciones: 0, guardados: 0, reproducciones: 0, nr: 0 });
+      o.n++;
+      o.alcance += m.alcance || 0;
+      o.interacciones += m.interacciones || 0;
+      o.guardados += m.guardados || 0;
+      if (m.reproducciones != null) {
+        o.reproducciones += m.reproducciones;
+        o.nr++;
+      }
+    });
+    var fRows = FORMAT_ORDER.filter(function (f) {
+      return fm[f];
+    });
+    var planned = allPosts().filter(function (p) {
+        return hasIg(p) && p.date && p.date >= r.desde && p.date <= r.hasta;
+      }),
+      published = planned.filter(function (p) {
+        return p.status === "publicado";
+      }),
+      linked = published.filter(function (p) {
+        var x = igMet(p);
+        return x && x.encontrado;
+      });
+    h += '<div class="grid2 res2"><section class="card"><h3>Por formato</h3>' +
+      (fRows.length
+        ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Alcance prom.</th><th>Interacciones prom.</th><th>Guardados prom.</th></tr></thead><tbody>' +
+          fRows.map(function (f) {
+            var o = fm[f];
+            return '<tr><td><span class="tag f-' + f + '">' + fIcon(f) + FORMATS[f].label + "</span></td><td>" + o.n +
+              "</td><td>" + fmtNum(o.alcance / o.n) + "</td><td>" + fmtNum(o.interacciones / o.n) + "</td><td>" +
+              fmtNum(o.guardados / o.n) + "</td></tr>";
+          }).join("") + "</tbody></table></div>"
+        : '<p class="gv-empty">Se calcula con los posts que tienen métricas.</p>') +
+      '</section><section class="card"><h3>Plan contra realidad</h3><div class="pvr">' +
+      '<div><b>' + planned.length + "</b><span>planificados</span></div>" +
+      '<div><b>' + published.length + "</b><span>publicados</span></div>" +
+      '<div><b>' + linked.length + "</b><span>con link de Instagram</span></div></div>" +
+      (published.length > linked.length && S.canWrite
+        ? '<p class="muted small">' + (published.length - linked.length === 1 ? "Falta " : "Faltan ") +
+          plural(published.length - linked.length, "post publicado", "posts publicados") +
+          " por vincular: abre cada uno y pega su link de Instagram.</p>"
+        : "") +
+      "</section></div>";
+    // Mejor día y hora
+    h += '<section class="card"><h3>Mejor día y hora para publicar</h3>' +
+      heatmap(L.data && L.data.audiencia) + "</section>";
+    main.innerHTML = h;
+  }
+
   /* ---------- Detail ---------- */
   function buildDetail(p) {
     S.detailBuilt = p.id;
@@ -1974,13 +2644,17 @@
       ro + "></div></div>" +
       '<div class="fld"><label for="f-drive">Carpeta de Drive</label><div class="drivebox"><input id="f-drive" class="in" data-f="drive" type="url" inputmode="url" placeholder="Pega el link de la carpeta con los contenidos" autocomplete="off" spellcheck="false"' +
       ro + '><span id="driveOpen"></span></div><div class="hint" id="driveHint" hidden><span class="over">Ese link no parece válido.</span></div></div>' +
+      '<div class="fld" id="igLinkFld"><label for="f-igLink">Link en Instagram</label><input id="f-igLink" class="in" data-f="igLink" type="url" inputmode="url" placeholder="Pega el link del post cuando se publique" autocomplete="off" spellcheck="false"' +
+      ro + "></div>" +
       '<div class="fld"><label for="f-copy">Copy</label><textarea id="f-copy" class="in" data-f="copy" rows="7" placeholder="Texto que acompaña la publicación"' +
       ro + "></textarea>" +
       '<div class="hint"><span id="cnt-copy"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-copy">Copiar copy</button></div></div>' +
       '<div class="fld"><label for="f-hashtags">Hashtags</label><textarea id="f-hashtags" class="in" data-f="hashtags" rows="3" placeholder="#hashtag1 #hashtag2"' +
       ro + "></textarea>" +
       '<div class="hint"><span id="cnt-tags"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-hashtags">Copiar hashtags</button></div></div>' +
-      '</section></div><div class="col col-produccion">' +
+      '</section>' +
+      '<section class="card" id="igCard" hidden><div class="card-h"><h3>Métricas de Instagram</h3><span id="igAct"></span></div><div id="igBody"></div></section>' +
+      '</div><div class="col col-produccion">' +
       '<section class="card"><div class="card-h"><h3>Producción</h3><button class="sw" id="sw-shoot" type="button" role="switch" aria-checked="false" data-act="togshoot"><span class="trk"></span><span>Incluir en la pauta</span></button></div>' +
       '<p class="muted" id="shootHint"></p>' +
       '<div class="fld"><label for="f-direction">Dirección creativa (descripción)</label><textarea id="f-direction" class="in" data-f="direction" rows="5" placeholder="Describe el reel o la pieza: idea, tono, estilo visual, música…"' +
@@ -2238,6 +2912,9 @@
       : "No aparece en la pauta. Actívalo si hay que grabar o fotografiar algo.";
     paintCounters();
     paintFooter();
+    $("#igLinkFld").hidden = !hasIg(p);
+    paintIg(p);
+    ensureThumbs();
   }
 
   /* ---------- Render ---------- */
@@ -2258,7 +2935,7 @@
       keep = { id: ae.id, v: ae.value, s: ae.selectionStart, e: ae.selectionEnd };
     }
     var sy = window.scrollY;
-    ({ lista: viewLista, calendario: viewCal, objetivos: viewObj, pauta: viewPauta })[S.view]();
+    ({ lista: viewLista, calendario: viewCal, objetivos: viewObj, pauta: viewPauta, resultados: viewRes })[S.view]();
     if (keep) {
       var el = document.getElementById(keep.id);
       if (el) {
@@ -2270,6 +2947,7 @@
       }
     }
     window.scrollTo(0, toTop ? 0 : sy);
+    ensureThumbs();
   }
   function onData(pendingWrites) {
     if (S.view === "detalle") {
@@ -2442,6 +3120,17 @@
     if (!el) return;
     var act = el.dataset.act, p;
     switch (act) {
+      case "resper":
+        S.resPer = el.dataset.v;
+        render();
+        break;
+      case "ressort":
+        S.resSort = el.dataset.v;
+        render();
+        break;
+      case "igupd":
+        igUpdate();
+        break;
       case "stmenu":
         if (stMenuBtn === el) closeStMenu(true);
         else openStMenu(el);
@@ -2478,11 +3167,11 @@
         render();
         break;
       case "prev":
-        shift(S.view === "objetivos" ? -3 : -1);
+        shift(isQ() ? -3 : -1);
         render();
         break;
       case "next":
-        shift(S.view === "objetivos" ? 3 : 1);
+        shift(isQ() ? 3 : 1);
         render();
         break;
       case "today":
@@ -2815,6 +3504,10 @@
   });
   document.addEventListener("change", function (e) {
     var el = e.target;
+    if (el.id === "f-igLink" && S.postId && canW()) {
+      linkIg(S.postId);
+      return;
+    }
     if (el.id === "refFile") {
       addRefFiles(el.files);
       el.value = "";
@@ -2824,6 +3517,10 @@
       var mq = el.dataset.mf.split("|");
       editMetric(mq[0], mq[1], mq[2], function (m) {
         if (mq[3] === "name") m.name = el.value.trim();
+        else if (mq[3] === "src") {
+          m.src = el.value === "manual" ? null : el.value;
+          if (m.src && !m.name) m.name = srcLabel(m.src).replace(/ \(.*\)| del mes/g, "");
+        }
         else m[mq[3]] = parseNum(el.value);
       });
       setTimeout(function () {

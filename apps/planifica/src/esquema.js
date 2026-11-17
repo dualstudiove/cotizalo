@@ -76,8 +76,74 @@ CREATE INDEX IF NOT EXISTS idx_imagenes_cliente ON imagenes (cliente_id);
 
 export const COLUMNAS = [];
 
+// Métricas de redes (Instagram hoy; TikTok después). Tablas añadidas después del esquema base: se crean también
+// en bases que ya existían. Ver src/redes/.
+export const TABLAS_REDES = `
+-- Una cuenta conectada por cliente y red. El token va cifrado (cifrado.js) y nunca sale del servidor.
+CREATE TABLE IF NOT EXISTS redes_conexiones (
+  cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  red             TEXT NOT NULL CHECK (red IN ('ig', 'tt')),
+  cuenta_id       TEXT NOT NULL,                 -- id de la cuenta en la red
+  usuario         TEXT NOT NULL DEFAULT '',      -- @usuario
+  token           TEXT,                          -- cifrado
+  token_creado    INTEGER,                       -- ms: Instagram no deja renovar un token de menos de 24 h
+  token_vence     INTEGER,                       -- ms
+  origen          TEXT NOT NULL DEFAULT 'token', -- 'token' (pegado a mano) | 'oauth' (botón «Conectar»)
+  estado          TEXT NOT NULL DEFAULT 'ok',    -- 'ok' | 'error'
+  error           TEXT,
+  sincronizado_en INTEGER,                       -- ms de la última actualización correcta
+  cuenta_dia      TEXT,                          -- día (local) en que ya se guardaron las cifras de la cuenta
+  completo_dia    TEXT,                          -- día (local) en que ya se actualizaron todos sus posts
+  manual_en       INTEGER,                       -- ms del último «Actualizar» (freno de 15 minutos)
+  audiencia       TEXT,                          -- JSON: seguidores conectados por día de la semana y hora
+  audiencia_en    INTEGER,
+  conectado_en    INTEGER NOT NULL,
+  conectado_por   TEXT,
+  PRIMARY KEY (cliente_id, red)
+);
+
+-- Cifras diarias de la cuenta: seguidores (foto del día) y lo que pasó ese día (alcance, reproducciones…).
+CREATE TABLE IF NOT EXISTS redes_cuenta_dia (
+  cliente_id TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  red        TEXT NOT NULL,
+  dia        TEXT NOT NULL,                      -- AAAA-MM-DD (hora local)
+  seguidores INTEGER,
+  datos      TEXT,                               -- JSON: alcance, reproducciones, cuentas, interacciones
+  PRIMARY KEY (cliente_id, red, dia)
+);
+
+-- Cada post de la parrilla vinculado a su publicación en la red, con sus métricas actuales.
+CREATE TABLE IF NOT EXISTS redes_posts (
+  publicacion_id TEXT NOT NULL REFERENCES publicaciones(id) ON DELETE CASCADE,
+  red            TEXT NOT NULL,
+  cliente_id     TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  link           TEXT NOT NULL,
+  medio_id       TEXT,                           -- id en la red (null: aún sin encontrar)
+  tipo           TEXT,                           -- REELS, FEED, CAROUSEL_ALBUM…
+  publicado_en   TEXT,                           -- fecha y hora real de publicación (ISO)
+  metricas       TEXT,                           -- JSON: likes, comentarios, compartidos, guardados, alcance…
+  dia            TEXT,                           -- día (local) de la última actualización
+  actualizado_en INTEGER,
+  error          TEXT,
+  miniatura_url  TEXT,                           -- dirección que da la red (vence); de ahí sale la miniatura propia
+  miniatura_id   TEXT,                           -- imagen propia (tabla imagenes), WebP de 320 px
+  PRIMARY KEY (publicacion_id, red)
+);
+CREATE INDEX IF NOT EXISTS idx_redes_posts_cliente ON redes_posts (cliente_id, red);
+
+-- Historial: una foto por post y día, solo cuando algo cambió.
+CREATE TABLE IF NOT EXISTS redes_posts_dia (
+  publicacion_id TEXT NOT NULL REFERENCES publicaciones(id) ON DELETE CASCADE,
+  red            TEXT NOT NULL,
+  dia            TEXT NOT NULL,
+  metricas       TEXT NOT NULL,
+  PRIMARY KEY (publicacion_id, red, dia)
+);
+`;
+
 export const asegurarEsquema = crearEsquema({
   base: ESQUEMA_BASE,
   testigo: "usuarios",
   columnas: COLUMNAS,
+  tablas: TABLAS_REDES,
 });

@@ -52,6 +52,9 @@
     { "pattern": "dualstudio.app/planifica", "zone_name": "dualstudio.app" },
     { "pattern": "dualstudio.app/planifica/*", "zone_name": "dualstudio.app" }
   ],
+  // Métricas de redes: cada 10 minutos entre las 6:00 y las 7:50 de Venezuela (10:00–11:50 UTC). Cada ejecución
+  // atiende a los clientes que aún no se actualizaron hoy, hasta gastar su presupuesto de llamadas (src/redes/sync.js).
+  "triggers": { "crons": ["*/10 10-11 * * *"] },
   "workers_dev": false,
   "preview_urls": true,
 

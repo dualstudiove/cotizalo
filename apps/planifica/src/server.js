@@ -6,17 +6,26 @@ import { configurarEnv } from "./env.js";
 import { asegurarEsquema } from "./esquema.js";
 import { registrarRutas } from "./rutas.js";
 import { registrarAdmin } from "./admin.js";
+import { registrarRedes } from "./redes/rutas.js";
+import { tareaDiaria } from "./redes/sync.js";
 import { asegurarAdminDesdeSecretos, RESERVADOS } from "./sesion.js";
 
 const router = new Router();
 registrarRutas(router);
 registrarAdmin(router);
+registrarRedes(router);
 
 export const { app, fetch, scheduled } = crearServidor({
   router,
   configurar: configurarEnv,
   asegurarEsquema,
   alIniciar: () => asegurarAdminDesdeSecretos(),
+  // Cada mañana (ver «triggers» en wrangler.jsonc): métricas de Instagram de los clientes conectados.
+  programado: async () => {
+    await asegurarEsquema();
+    const r = await tareaDiaria();
+    if (r.pendientes) console.log("[redes] tarea de la mañana", JSON.stringify(r));
+  },
   // Las rutas de un cliente cuelgan de /:cliente (p. ej. /laboratorio-rh/api/datos); las demás, de la raíz.
   rutaApi: (r) => (r.opts.cliente ? `/:cliente${r.path}` : r.path),
   estaticos: ["/css/*", "/js/*", "/img/*", "/vendor/*", "/_ds/*"],

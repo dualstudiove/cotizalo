@@ -46,8 +46,11 @@ export function registrarAdmin(r) {
     const clientes = await db.all(
       `SELECT c.id, c.slug, c.nombre, c.handle, c.activo, c.creado_en,
               (SELECT COUNT(*) FROM publicaciones p WHERE p.cliente_id = c.id) AS publicaciones,
-              (SELECT COALESCE(SUM(i.bytes), 0) FROM imagenes i WHERE i.cliente_id = c.id) AS uso_bytes
-         FROM clientes c ORDER BY c.activo DESC, c.nombre`,
+              (SELECT COALESCE(SUM(i.bytes), 0) FROM imagenes i WHERE i.cliente_id = c.id) AS uso_bytes,
+              r.usuario AS ig_usuario, r.estado AS ig_estado, r.error AS ig_error,
+              r.sincronizado_en AS ig_sincronizado_en, r.token_vence AS ig_token_vence
+         FROM clientes c LEFT JOIN redes_conexiones r ON r.cliente_id = c.id AND r.red = 'ig'
+        ORDER BY c.activo DESC, c.nombre`,
     );
     const usuarios = await db.all(
       "SELECT id, email, nombre, es_admin, activo, creado_en FROM usuarios ORDER BY es_admin DESC, nombre, email",
@@ -55,8 +58,15 @@ export function registrarAdmin(r) {
     const accesos = await db.all("SELECT usuario_id, cliente_id, rol FROM accesos");
     return {
       tope_bytes: TOPE_CLIENTE,
-      clientes: clientes.map((c) => ({
+      clientes: clientes.map(({ ig_usuario, ig_estado, ig_error, ig_sincronizado_en, ig_token_vence, ...c }) => ({
         ...c,
+        instagram: ig_usuario === null || ig_usuario === undefined ? null : {
+          usuario: ig_usuario,
+          estado: ig_estado,
+          error: ig_error,
+          sincronizado_en: ig_sincronizado_en,
+          token_vence: ig_token_vence,
+        },
         activo: !!c.activo,
         publicaciones: Number(c.publicaciones),
         uso_bytes: Number(c.uso_bytes),

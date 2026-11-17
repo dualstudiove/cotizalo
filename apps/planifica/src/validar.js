@@ -23,6 +23,7 @@ export const CAMPOS_PUBLICACION = new Set([
   "refImgs",
   "refShow",
   "drive",
+  "igLink",
 ]);
 export const FORMATOS = new Set(["reel", "carrusel", "foto", "historia", "diseno"]);
 export const ESTADOS = new Set(["idea", "porproducir", "produccion", "listo", "publicado"]);
@@ -85,6 +86,9 @@ export function validarCambiosPublicacion(cambios) {
     // solo lo vuelve enlace si es http(s).
     if (k === "drive" && (typeof v !== "string" || v.length > 2000)) {
       throw new HttpError(400, "El link de Drive no es válido.");
+    }
+    if (k === "igLink" && (typeof v !== "string" || v.length > 500)) {
+      throw new HttpError(400, "El link de Instagram no es válido.");
     }
     if (k === "refImgs" && (!Array.isArray(v) || v.some((x) => !x || typeof x.id !== "string"))) {
       throw new HttpError(400, "Las imágenes no son válidas.");

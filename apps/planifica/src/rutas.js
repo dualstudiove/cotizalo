@@ -35,18 +35,15 @@ import {
   validarCambiosPublicacion,
 } from "./validar.js";
 import { borrarImagenes, decodificar, guardarImagen, leerImagen } from "./almacen.js";
+import { tocar } from "./cambios.js";
+import { datosDeRedes } from "./redes/rutas.js";
+import { alCambiarLink } from "./redes/sync.js";
 
 // Topes diarios por cliente (en la base): frenan un uso desbocado antes de que agote la cuota gratuita de la cuenta.
 const TOPE_ESCRITURAS_DIA = 5000;
 const TOPE_IMAGENES_DIA = 200;
 
-/** Marca que el cliente cambió: quien tenga la parrilla abierta lo verá en su próximo refresco. */
-export async function tocar(clienteId) {
-  await db.run("UPDATE clientes SET cambiado_en = MAX(cambiado_en + 1, ?) WHERE id = ?", [
-    Date.now(),
-    clienteId,
-  ]);
-}
+export { tocar };
 
 const escritura = async (ctx) => {
   exigirEditor(ctx);
@@ -210,6 +207,8 @@ export function registrarRutas(r) {
       objetivos,
       ajustes: { handle: cliente.handle || "" },
       nombres,
+      // Métricas de redes: conexiones, métricas de cada post vinculado y cifras de la cuenta por mes.
+      ...(await datosDeRedes(cliente.id)),
       // Para la barra superior: si puede cambiar de cliente o ir a la administración.
       navegacion: { clientes: (await clientesDe(usuario)).length, es_admin: !!usuario.es_admin },
     };
@@ -233,6 +232,7 @@ export function registrarRutas(r) {
       }
       throw e;
     }
+    if (datos.igLink) await alCambiarLink(cliente.id, id, "ig", datos.igLink);
     await tocar(cliente.id);
     return { id };
   });
@@ -245,11 +245,13 @@ export function registrarRutas(r) {
       cliente.id,
     ]);
     if (!f) throw new HttpError(404, "La publicación no existe. Puede que se haya eliminado.");
-    const datos = unir(json(f.datos), validarCambiosPublicacion(body.cambios), "publicacion");
+    const cambios = validarCambiosPublicacion(body.cambios);
+    const datos = unir(json(f.datos), cambios, "publicacion");
     await db.run(
       "UPDATE publicaciones SET datos = ?, actualizado_en = ?, actualizado_por = ? WHERE id = ? AND cliente_id = ?",
       [JSON.stringify(datos), Date.now(), usuario.id, params.id, cliente.id],
     );
+    if ("igLink" in cambios) await alCambiarLink(cliente.id, params.id, "ig", cambios.igLink);
     await tocar(cliente.id);
     return { ok: true };
   });
@@ -262,12 +264,17 @@ export function registrarRutas(r) {
       cliente.id,
     ]);
     if (!f) return { ok: true };
+    // Las miniaturas de sus métricas también se van.
+    const miniaturas = (await db.all(
+      "SELECT miniatura_id FROM redes_posts WHERE publicacion_id = ? AND miniatura_id IS NOT NULL",
+      [params.id],
+    )).map((x) => x.miniatura_id);
     await db.run("DELETE FROM publicaciones WHERE id = ? AND cliente_id = ?", [
       params.id,
       cliente.id,
     ]);
     // Sus imágenes se van con ella, para no ocupar espacio de más.
-    const imgs = (json(f.datos).refImgs || []).map((x) => x && x.id);
+    const imgs = (json(f.datos).refImgs || []).map((x) => x && x.id).concat(miniaturas);
     await borrarImagenes(cliente.id, imgs);
     await tocar(cliente.id);
     return { ok: true };
