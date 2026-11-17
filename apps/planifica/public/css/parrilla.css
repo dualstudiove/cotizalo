@@ -2677,4 +2677,103 @@
   .ms-det[open] summary {
     margin-bottom: 6px;
   }
+
+  /* ===== Barra superior: marca | cliente (nombre y cuenta) … acciones, todo a la misma altura ===== */
+  .top-row {
+    flex-wrap: nowrap;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .brand {
+    flex: none;
+    gap: 8px;
+  }
+  .brand-name {
+    font-size: 16px;
+  }
+  .tsep {
+    width: 1px;
+    height: 26px;
+    background: var(--line);
+    flex: none;
+  }
+  .cli {
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    min-width: 0;
+  }
+  .cli-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 6px;
+    padding: 1px 4px;
+    margin-left: -4px;
+  }
+  .cli-name:hover {
+    background: var(--surface-2);
+  }
+  .cli-name svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    color: var(--ink-3);
+  }
+  .cli b {
+    font-size: 15px;
+    line-height: 1.3;
+  }
+  #acct {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 12.5px;
+    line-height: 1.3;
+    padding: 0 4px;
+    margin-left: -4px;
+    min-height: 0;
+    width: 100%;
+    max-width: 220px;
+  }
+  #acct:hover {
+    border-color: var(--line);
+  }
+  #acct:focus {
+    border-color: var(--accent);
+    color: var(--ink);
+    outline: none;
+  }
+  .tacts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+  }
+  .tacts .btn {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  @media (max-width:560px) {
+    .top-row {
+      flex-wrap: nowrap;
+      gap: 10px;
+    }
+    .tsep {
+      display: none;
+    }
+    .tacts .btn {
+      padding: 0 11px;
+    }
+  }
 }
