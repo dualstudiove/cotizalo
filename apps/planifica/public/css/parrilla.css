@@ -1792,17 +1792,6 @@
     cursor: pointer;
     gap: 6px;
   }
-  .stsel select {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-    font-size: 16px;
-    border: 0;
-    appearance: none;
-  }
   .stsel .chev {
     width: 10px;
     height: 10px;
@@ -1812,9 +1801,17 @@
   .stsel:hover {
     filter: brightness(.95);
   }
-  .stsel:focus-within {
+  .stsel {
+    border: 0;
+    font-family: inherit;
+  }
+  .stsel:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+  #stWrap .st {
+    font-size: 13px;
+    padding: 6px 12px;
   }
   @media (max-width:479px) {
     .row > .stsel {
@@ -2067,5 +2064,49 @@
     #dgrid[data-tab="produccion"] .col-contenido {
       display: none;
     }
+  }
+
+  /* Menú de estados: las mismas píldoras, una debajo de otra */
+  .stmenu {
+    position: fixed;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgb(0 0 0 / .14), 0 2px 6px rgb(0 0 0 / .06);
+    min-width: 170px;
+  }
+  .stmenu .st {
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 5px 12px;
+    outline-offset: 2px;
+  }
+  .stmenu .st:hover {
+    filter: brightness(.95);
+  }
+  .stmenu .st:focus-visible {
+    outline: 2px solid var(--accent);
+  }
+  .stmenu .st[aria-checked="true"] {
+    box-shadow: 0 0 0 1.5px currentColor;
+  }
+
+  /* Publicados: más tenues */
+  .row.pub,
+  .chip.pub {
+    opacity: .55;
+  }
+  .row.pub:hover,
+  .row.pub:focus-within,
+  .chip.pub:hover {
+    opacity: 1;
   }
 }

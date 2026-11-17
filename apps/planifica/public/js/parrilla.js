@@ -276,6 +276,13 @@
     f: { plat: "all", fmt: "all", st: "all", q: "" },
     group: "tipo",
     showDone: true,
+    showPub: (function () {
+      try {
+        return localStorage.getItem("pc_pub") !== "0";
+      } catch (e) {
+        return true;
+      }
+    })(),
     filtersOpen: false,
     goalsEdit: false,
     pdfBusy: false,
@@ -319,6 +326,7 @@
     if (f.plat !== "all" && (p.platforms || []).indexOf(f.plat) < 0) return false;
     if (f.fmt !== "all" && p.format !== f.fmt) return false;
     if (f.st !== "all" && p.status !== f.st) return false;
+    if (!S.showPub && p.status === "publicado") return false;
     if (f.q) {
       var hay = ((p.title || "") + " " + (p.copy || "") + " " + (p.hashtags || "") + " " +
         (p.direction || "")).toLowerCase();
@@ -626,6 +634,9 @@
     if (n) {
       h += '<button class="btn ghost sm" type="button" data-act="clearfilters">Limpiar</button>';
     }
+    h += '<button class="tog eye" type="button" data-act="togpub" aria-pressed="' + S.showPub +
+      '" title="Mostrar u ocultar los posts publicados">' + (S.showPub ? EYE_SVG : EYEOFF_SVG) +
+      "<span>Publicados</span></button>";
     if (isList && S.lgroup === "estado") h += '<span class="hits">Agrupado por estado</span>';
     if (legend) {
       h += '<div class="legend">' + FORMAT_ORDER.map(function (k) {
@@ -674,23 +685,92 @@
   function emptyAll() {
     return '<div class="empty"><h3>Aún no hay posts planificados</h3><p>Crea el primero o carga unos ejemplos para ver cómo funciona la lista, el calendario y la pauta.</p><div class="acts"><button class="btn primary" type="button" data-act="new">+ Nuevo post</button><button class="btn" type="button" data-act="examples">Cargar ejemplos</button></div></div>';
   }
+  var CHEV_SVG =
+    '<svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>';
+  /* Estado editable: un botón con la píldora que abre un menú con todas las píldoras (stMenu). */
   function stSelect(p) {
     var cur = STATUS[p.status] ? p.status : "idea";
     if (!S.canWrite) return stPill(cur);
-    return '<label class="st stsel st-' + cur + '" title="Cambiar estado">' + stIcon(cur) + '<span>' +
-      esc(STATUS[cur]) +
-      '</span><svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>' +
-      '<select data-stsel="' + esc(p.id) + '" aria-label="Estado de ' +
-      esc(p.title || "Sin título") + '">' + Object.keys(STATUS).map(function (k) {
-        return '<option value="' + k + '"' + (k === cur ? " selected" : "") + ">" + STATUS[k] +
-          "</option>";
-      }).join("") + "</select></label>";
+    return '<button class="st stsel st-' + cur + '" type="button" data-act="stmenu" data-id="' +
+      esc(p.id) + '" aria-haspopup="menu" aria-expanded="false" aria-label="Estado: ' +
+      esc(STATUS[cur]) + '. Cambiar estado de ' + esc(p.title || "Sin título") + '">' +
+      stIcon(cur) + "<span>" + esc(STATUS[cur]) + "</span>" + CHEV_SVG + "</button>";
   }
+  var stMenuEl = null, stMenuBtn = null;
+  function closeStMenu(focusBack) {
+    if (!stMenuEl) return;
+    stMenuEl.remove();
+    stMenuEl = null;
+    if (stMenuBtn) {
+      stMenuBtn.setAttribute("aria-expanded", "false");
+      if (focusBack && document.contains(stMenuBtn)) stMenuBtn.focus();
+    }
+    stMenuBtn = null;
+  }
+  function openStMenu(btn) {
+    var p = S.posts.get(btn.dataset.id);
+    if (!p) return;
+    closeStMenu();
+    var cur = STATUS[p.status] ? p.status : "idea";
+    var m = document.createElement("div");
+    m.className = "stmenu";
+    m.setAttribute("role", "menu");
+    m.innerHTML = Object.keys(STATUS).map(function (k) {
+      return '<button class="st st-' + k + '" type="button" role="menuitemradio" aria-checked="' +
+        (k === cur) + '" data-act="stpick" data-id="' + esc(p.id) + '" data-v="' + k + '">' +
+        stIcon(k) + "<span>" + STATUS[k] + "</span></button>";
+    }).join("");
+    document.body.appendChild(m);
+    var r = btn.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+    var left = Math.min(Math.max(8, r.left), window.innerWidth - mw - 8);
+    var top = r.bottom + 6;
+    if (top + mh > window.innerHeight - 8 && r.top - mh - 6 > 8) top = r.top - mh - 6;
+    m.style.left = left + "px";
+    m.style.top = top + "px";
+    stMenuEl = m;
+    stMenuBtn = btn;
+    btn.setAttribute("aria-expanded", "true");
+    var sel = m.querySelector('[aria-checked="true"]') || m.firstChild;
+    sel.focus();
+  }
+  function pickStatus(id, v) {
+    var sp = S.posts.get(id);
+    closeStMenu(false);
+    if (!sp || !canW() || !STATUS[v] || sp.status === v) return;
+    sp.status = v;
+    queueSave("posts/" + sp.id, { status: v }, 0);
+    if (S.view === "detalle") paintDetail();
+    else render();
+  }
+  document.addEventListener("keydown", function (e) {
+    if (!stMenuEl) return;
+    var items = Array.prototype.slice.call(stMenuEl.querySelectorAll("button")),
+      i = items.indexOf(document.activeElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeStMenu(true);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      var n = items.length;
+      items[((i < 0 ? 0 : i) + (e.key === "ArrowDown" ? 1 : n - 1)) % n].focus();
+    } else if (e.key === "Tab") closeStMenu(false);
+  });
+  document.addEventListener("pointerdown", function (e) {
+    if (stMenuEl && !stMenuEl.contains(e.target) && !(stMenuBtn && stMenuBtn.contains(e.target))) {
+      closeStMenu(false);
+    }
+  }, true);
+  window.addEventListener("resize", function () {
+    closeStMenu(false);
+  });
+  window.addEventListener("scroll", function () {
+    closeStMenu(false);
+  }, true);
   function row(p, drag) {
     var f = FORMATS[p.format] || FORMATS.reel,
       d = p.date ? dateObj(p.date) : null,
       pl = platAbbr(p);
-    return '<div class="row f-' + esc(p.format) + '"' +
+    return '<div class="row f-' + esc(p.format) + (p.status === "publicado" ? " pub" : "") + '"' +
       (drag ? ' data-drag="' + esc(p.id) + '"' : "") + ">" +
       '<div class="rd">' +
       (d
@@ -1869,14 +1949,10 @@
       return '<button type="button" class="tog" id="pl-' + k + '" data-act="togplat" data-v="' + k +
         '" aria-pressed="false">' + PLATFORMS[k] + "</button>";
     }).join("");
-    var stOpts = Object.keys(STATUS).map(function (k) {
-      return '<option value="' + k + '">' + STATUS[k] + "</option>";
-    }).join("");
     main.innerHTML = '<div id="detail">' +
       '<div class="detail-head"><button class="btn ghost" type="button" data-act="back">← ' +
       (S.last === "calendario" ? "Calendario" : "Lista") + "</button>" +
-      '<div class="dh-right"><label class="sr" for="f-status">Estado</label><select id="f-status" class="in sel" data-f="status"' +
-      ro + ">" + stOpts + "</select>" +
+      '<div class="dh-right"><span id="stWrap"></span>' +
       '<span id="delWrap"><button class="btn danger" type="button" data-act="del">Eliminar</button></span>' +
       '<span id="delConfirm" hidden>¿Eliminar este post? <button class="btn sm" type="button" data-act="delno">Cancelar</button> <button class="btn sm danger" type="button" data-act="delyes">Sí, eliminar</button></span></div></div>' +
       '<div class="dtabs seg" role="group" aria-label="Sección del post">' +
@@ -2145,6 +2221,11 @@
     Object.keys(PLATFORMS).forEach(function (k) {
       $("#pl-" + k).setAttribute("aria-pressed", String((p.platforms || []).indexOf(k) >= 0));
     });
+    var stw = $("#stWrap"), stk = (STATUS[p.status] ? p.status : "idea") + (S.canWrite ? "w" : "r");
+    if (stw && stw.dataset.k !== stk) {
+      stw.innerHTML = stSelect(p);
+      stw.dataset.k = stk;
+    }
     $("#sw-shoot").setAttribute("aria-checked", String(!!p.shoot));
     $("#sw-done").setAttribute("aria-checked", String(!!p.shotDone));
     paintShots(p, false);
@@ -2361,6 +2442,20 @@
     if (!el) return;
     var act = el.dataset.act, p;
     switch (act) {
+      case "stmenu":
+        if (stMenuBtn === el) closeStMenu(true);
+        else openStMenu(el);
+        break;
+      case "stpick":
+        pickStatus(el.dataset.id, el.dataset.v);
+        break;
+      case "togpub":
+        S.showPub = !S.showPub;
+        try {
+          localStorage.setItem("pc_pub", S.showPub ? "1" : "0");
+        } catch (e2) {}
+        render();
+        break;
       case "new":
         createPost({}).then(function (id) {
           if (id) {
@@ -2725,17 +2820,6 @@
       el.value = "";
       return;
     }
-    if (el.dataset && el.dataset.stsel) {
-      var sp = S.posts.get(el.dataset.stsel);
-      if (sp && canW() && STATUS[el.value]) {
-        sp.status = el.value;
-        queueSave("posts/" + sp.id, { status: sp.status }, 0);
-        setTimeout(function () {
-          render();
-        }, 0);
-      }
-      return;
-    }
     if (el.dataset && el.dataset.mf) {
       var mq = el.dataset.mf.split("|");
       editMetric(mq[0], mq[1], mq[2], function (m) {
@@ -2880,7 +2964,7 @@
   document.addEventListener("pointerdown", function (e) {
     if (S.view !== "calendario" || !S.canWrite || DR) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    if (e.target.closest && e.target.closest("select")) return;
+    if (e.target.closest && e.target.closest("select, .stsel")) return;
     var src = e.target.closest && e.target.closest("[data-drag]");
     if (!src) return;
     DR = {
