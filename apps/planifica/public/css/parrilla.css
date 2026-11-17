@@ -127,6 +127,30 @@
     font-weight: 500;
     border-bottom: 2px solid transparent;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .tabs a svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+  @media (max-width:560px) {
+    /* En el teléfono caben las cinco: ícono arriba y nombre corto abajo */
+    .tabs a {
+      flex: 1 1 0;
+      min-width: 0;
+      flex-direction: column;
+      gap: 3px;
+      padding: 7px 2px;
+      font-size: 11px;
+    }
+    .tabs a span {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
   .tabs a:hover {
     color: var(--ink);
@@ -2208,7 +2232,7 @@
     color: var(--ink-3);
   }
 
-  /* Resultados */
+  /* Rendimiento */
   .res-upd {
     margin-left: auto;
     display: inline-flex;
@@ -2264,8 +2288,60 @@
   }
   .kpi .kd.up,
   .kpi .kd.down {
-    color: var(--ink-2);
     font-weight: 600;
+  }
+  .kpi .kd.up {
+    color: var(--ok);
+  }
+  .kpi .kd.down {
+    color: var(--danger);
+  }
+  .mtile.wide {
+    grid-column: span 2;
+  }
+  .crown {
+    display: inline-flex;
+    vertical-align: -2px;
+    color: var(--warn);
+  }
+  .crown svg {
+    width: 15px;
+    height: 15px;
+  }
+  .ftab tr.win td {
+    font-weight: 600;
+  }
+  .missing {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .missing li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  .missing li > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .missing a:not(.btn) {
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .missing a:not(.btn):hover {
+    text-decoration: underline;
   }
   .charts {
     display: grid;

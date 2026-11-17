@@ -23,6 +23,8 @@
   ];
   var MON3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
   var DOW = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  var CROWN_SVG =
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5.2l3.2 2.6L8 3.2l2.8 4.6L14 5.2l-1.3 7H3.3z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>';
   var DOW_LONG = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
   var FORMATS = {
     reel: { label: "Reel", plural: "Reels", list: "Clips a grabar" },
@@ -452,9 +454,10 @@
   }
 
   /* ---------- Routing ---------- */
-  var LISTS = ["lista", "calendario", "objetivos", "pauta", "resultados"];
+  var LISTS = ["lista", "calendario", "objetivos", "pauta", "rendimiento"];
   function route() {
     var h = location.hash.replace(/^#/, "");
+    if (h === "resultados") h = "rendimiento"; // nombre anterior de la pestaña
     if (h.indexOf("post-") === 0) {
       S.view = "detalle";
       if (S.postId !== h.slice(5)) S.dtab = "contenido";
@@ -508,9 +511,9 @@
     S.cy = y;
     S.selDay = null;
   }
-  /** Objetivos y Resultados por trimestre avanzan de 3 en 3 meses. */
+  /** Objetivos y Rendimiento por trimestre avanzan de 3 en 3 meses. */
   function isQ() {
-    return S.view === "objetivos" || (S.view === "resultados" && S.resPer === "q");
+    return S.view === "objetivos" || (S.view === "rendimiento" && S.resPer === "q");
   }
   function monthBar() {
     var q = isQ(), qn = Math.floor(S.cm / 3);
@@ -2082,9 +2085,17 @@
     if (!x.encontrado || !x.m) {
       return '<p class="warn-note">' + esc(x.error || "Aún no hay métricas de este post.") + "</p>";
     }
+    // Alcance y reproducciones van juntos: cuentas distintas que lo vieron y cuántas veces se vio en total.
     var tiles = MET_ORDER.filter(function (k) {
-      return x.m[k] != null;
+      return x.m[k] != null && k !== "reproducciones";
     }).map(function (k) {
+      if (k === "alcance") {
+        return '<div class="mtile wide"><b>' + fmtNum(x.m.alcance) + "</b><span>Alcance: cuentas que lo vieron" +
+          (x.m.reproducciones != null
+            ? ". Se vio " + fmtNum(x.m.reproducciones) + " veces" +
+              (x.m.alcance ? " (" + fmtNum(x.m.reproducciones / x.m.alcance, 1) + " por cuenta)" : "")
+            : "") + "</span></div>";
+      }
       return '<div class="mtile"><b>' + fmtNum(x.m[k]) + "</b><span>" + MET[k] + "</span></div>";
     }).join("");
     return '<div class="mhead">' + thumbHtml(p, x) + '<div class="mtiles">' + tiles + "</div></div>" +
@@ -2217,7 +2228,7 @@
     });
   }
 
-  /* ---------- Resultados (dashboard) ---------- */
+  /* ---------- Rendimiento (dashboard) ---------- */
   // Mes o trimestre del selector, con el periodo anterior para comparar. Las cifras diarias de la cuenta se
   // piden solo al abrir esta pestaña (no entran en el refresco de 30 s) y se guardan en memoria.
   function resQ() {
@@ -2266,7 +2277,7 @@
       delete S.resCache[key];
       S.resCache["err|" + key] = c;
     }).then(function () {
-      if (S.view === "resultados") render();
+      if (S.view === "rendimiento") render();
     });
     return c;
   }
@@ -2296,7 +2307,7 @@
   }
   function deltaHtml(cur, prev, label) {
     if (cur == null || prev == null || prev === 0) {
-      return '<span class="kd">Sin datos del ' + label + "</span>";
+      return '<span class="kd">Aún sin datos para comparar</span>';
     }
     var pct = Math.round((cur - prev) / Math.abs(prev) * 100);
     var arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "=";
@@ -2312,7 +2323,8 @@
      punto y valor del día. */
   var CHARTS = {};
   function lineChart(id, title, pts) {
-    var W = window.innerWidth < 640 ? 340 : 560, H = window.innerWidth < 640 ? 150 : 170, L = 44, R = 12, T = 12, B = 26;
+    // Tres gráficos por fila en escritorio, uno por fila en el teléfono: el tamaño de dibujo sigue al ancho real.
+    var W = 380, H = 170, L = 44, R = 12, T = 12, B = 26;
     var vals = pts.filter(function (p) {
       return p.v != null;
     });
@@ -2454,7 +2466,7 @@
       '<p class="hint" style="min-height:0"><span>Promedio de seguidores conectados por hora (hora de Venezuela), de los últimos 30 días.</span></p>';
   }
 
-  var SORT_KEYS = [["alcance", "Alcance"], ["interacciones", "Interacciones"], ["reproducciones", "Reproducciones"], ["guardados", "Guardados"], ["compartidos", "Compartidos"]];
+  var SORT_KEYS = [["alcance", "Alcance"], ["interacciones", "Interacciones"], ["likes", "Likes"], ["guardados", "Guardados"], ["compartidos", "Compartidos"]];
   function postDay(p, x) {
     return (x && x.publicado_en ? String(x.publicado_en).slice(0, 10) : "") || p.date || "";
   }
@@ -2472,7 +2484,7 @@
       "</span></div>";
     var c = igCon();
     if (!c) {
-      main.innerHTML = h + '<div class="empty"><h3>Instagram no está conectado</h3><p>Cuando un administrador conecte la cuenta de este cliente en <b>Clientes y equipo</b>, aquí verás sus resultados. Las cifras se guardan desde ese día.</p></div>';
+      main.innerHTML = h + '<div class="empty"><h3>Instagram no está conectado</h3><p>Cuando un administrador conecte la cuenta de este cliente en <b>Clientes y equipo</b>, aquí verás su rendimiento. Las cifras se guardan desde ese día.</p></div>';
       return;
     }
     if (c.estado === "error") {
@@ -2493,12 +2505,31 @@
       views = sumBy(dias, "reproducciones", r.desde, r.hasta), viewsP = sumBy(dias, "reproducciones", r.pDesde, r.cpHasta),
       inter = sumBy(dias, "interacciones", r.desde, r.hasta), interP = sumBy(dias, "interacciones", r.pDesde, r.cpHasta);
     var rate = reach ? inter / reach * 100 : null, rateP = reachP ? interP / reachP * 100 : null;
+    // Likes promedio por post: los posts publicados en el periodo (y en el mismo tramo del anterior).
+    function likesAvg(a, b) {
+      var n = 0, t = 0;
+      allPosts().forEach(function (p) {
+        var x = igMet(p), day = postDay(p, x);
+        if (hasIg(p) && x && x.m && x.m.likes != null && day >= a && day <= b) {
+          n++;
+          t += x.m.likes;
+        }
+      });
+      return n ? { v: t / n, n: n } : null;
+    }
+    var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.cpHasta);
+    var perPerson = reach && views ? views / reach : null;
     h += '<section class="kpis">' +
       kpi("Seguidores ganados", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
         fEnd != null ? fmtNum(fEnd) + " en total" : "") +
-      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta), "suma de cada día") +
-      kpi("Reproducciones", fmtNum(views), deltaHtml(views, viewsP, r.etiqueta)) +
-      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta)) +
+      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta),
+        views != null
+          ? "Cuentas que vieron tu contenido. Lo vieron " + fmtNum(views) + " veces" +
+            (perPerson ? " (" + fmtNum(perPerson, 1) + " por cuenta)" : "") + "."
+          : "Cuentas que vieron tu contenido.") +
+      kpi("Likes promedio por post", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
+        la ? "de " + plural(la.n, "post publicado", "posts publicados") : "Pega el link de los posts publicados.") +
+      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta), "likes, comentarios, compartidos y guardados") +
       kpi("Tasa de interacción", rate == null ? "–" : fmtNum(rate, 1) + " %", deltaHtml(rate, rateP, r.etiqueta),
         "interacciones ÷ alcance") +
       "</section>";
@@ -2521,6 +2552,9 @@
       })) +
       lineChart("alc", "Alcance por día", days.map(function (k) {
         return { dia: k, v: byDay[k] && typeof byDay[k].alcance === "number" ? byDay[k].alcance : null };
+      })) +
+      lineChart("int", "Interacciones por día", days.map(function (k) {
+        return { dia: k, v: byDay[k] && typeof byDay[k].interacciones === "number" ? byDay[k].interacciones : null };
       })) + "</div></section>";
     // Posts del periodo
     var inPer = allPosts().filter(function (p) {
@@ -2557,8 +2591,9 @@
     var fm = {};
     withM.forEach(function (p) {
       var f = p.format || "reel", m = igMet(p).m;
-      var o = fm[f] || (fm[f] = { n: 0, alcance: 0, interacciones: 0, guardados: 0, reproducciones: 0, nr: 0 });
+      var o = fm[f] || (fm[f] = { n: 0, alcance: 0, interacciones: 0, guardados: 0, likes: 0, reproducciones: 0, nr: 0 });
       o.n++;
+      o.likes += m.likes || 0;
       o.alcance += m.alcance || 0;
       o.interacciones += m.interacciones || 0;
       o.guardados += m.guardados || 0;
@@ -2580,25 +2615,46 @@
         var x = igMet(p);
         return x && x.encontrado;
       });
+    // Ganador: el formato con más interacciones promedio por post (solo si hay más de uno para comparar).
+    var winner = null;
+    if (fRows.length > 1) {
+      fRows.forEach(function (f) {
+        if (!winner || fm[f].interacciones / fm[f].n > fm[winner].interacciones / fm[winner].n) winner = f;
+      });
+    }
+    var missing = published.filter(function (p) {
+      var x = igMet(p);
+      return !(x && x.encontrado);
+    });
     h += '<div class="grid2 res2"><section class="card"><h3>Por formato</h3>' +
       (fRows.length
-        ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Alcance prom.</th><th>Interacciones prom.</th><th>Guardados prom.</th></tr></thead><tbody>' +
+        ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Alcance prom.</th><th>Likes prom.</th><th>Interacciones prom.</th><th>Guardados prom.</th></tr></thead><tbody>' +
           fRows.map(function (f) {
             var o = fm[f];
-            return '<tr><td><span class="tag f-' + f + '">' + fIcon(f) + FORMATS[f].label + "</span></td><td>" + o.n +
-              "</td><td>" + fmtNum(o.alcance / o.n) + "</td><td>" + fmtNum(o.interacciones / o.n) + "</td><td>" +
-              fmtNum(o.guardados / o.n) + "</td></tr>";
-          }).join("") + "</tbody></table></div>"
+            return '<tr' + (f === winner ? ' class="win"' : "") + '><td><span class="tag f-' + f + '">' + fIcon(f) +
+              FORMATS[f].label + "</span>" + (f === winner ? ' <span class="crown" title="Formato ganador del periodo">' + CROWN_SVG + "</span>" : "") +
+              "</td><td>" + o.n + "</td><td>" + fmtNum(o.alcance / o.n) + "</td><td>" + fmtNum(o.likes / o.n) + "</td><td>" +
+              fmtNum(o.interacciones / o.n) + "</td><td>" + fmtNum(o.guardados / o.n) + "</td></tr>";
+          }).join("") + "</tbody></table></div>" +
+          (winner
+            ? '<p class="hint" style="min-height:0"><span><span class="crown">' + CROWN_SVG + "</span> " +
+              esc(FORMATS[winner].plural || FORMATS[winner].label) + ": el formato con más interacciones promedio por post.</span></p>"
+            : "")
         : '<p class="gv-empty">Se calcula con los posts que tienen métricas.</p>') +
       '</section><section class="card"><h3>Plan contra realidad</h3><div class="pvr">' +
       '<div><b>' + planned.length + "</b><span>planificados</span></div>" +
       '<div><b>' + published.length + "</b><span>publicados</span></div>" +
       '<div><b>' + linked.length + "</b><span>con link de Instagram</span></div></div>" +
-      (published.length > linked.length && S.canWrite
-        ? '<p class="muted small">' + (published.length - linked.length === 1 ? "Falta " : "Faltan ") +
-          plural(published.length - linked.length, "post publicado", "posts publicados") +
-          " por vincular: abre cada uno y pega su link de Instagram.</p>"
-        : "") +
+      (missing.length
+        ? '<p class="muted small" style="margin-top:4px">' + (missing.length === 1 ? "Falta el link de este post publicado:" : "Falta el link de estos posts publicados:") + "</p>" +
+          '<ul class="missing">' + missing.sort(cmp).map(function (p) {
+            var x = igMet(p);
+            return '<li><div><a href="#post-' + esc(p.id) + '">' + (p.title ? esc(p.title) : "<em>Sin título</em>") +
+              '</a><span class="mt">' + esc(p.date ? fmtShort(p.date) : "") +
+              (x && x.error ? " · " + esc(x.error) : "") + '</span></div><a class="btn sm" href="#post-' + esc(p.id) + '">' +
+              (S.canWrite ? "Abrir y pegar link" : "Abrir") + "</a></li>";
+          }).join("") + "</ul>"
+        : (published.length ? '<p class="muted small">Todos los posts publicados tienen su link.</p>' : "")) +
       "</section></div>";
     // Mejor día y hora
     h += '<section class="card"><h3>Mejor día y hora para publicar</h3>' +
@@ -2935,7 +2991,7 @@
       keep = { id: ae.id, v: ae.value, s: ae.selectionStart, e: ae.selectionEnd };
     }
     var sy = window.scrollY;
-    ({ lista: viewLista, calendario: viewCal, objetivos: viewObj, pauta: viewPauta, resultados: viewRes })[S.view]();
+    ({ lista: viewLista, calendario: viewCal, objetivos: viewObj, pauta: viewPauta, rendimiento: viewRes })[S.view]();
     if (keep) {
       var el = document.getElementById(keep.id);
       if (el) {

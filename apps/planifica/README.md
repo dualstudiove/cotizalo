@@ -9,7 +9,7 @@ Nació como el artefacto «Parrilla de Contenido» de claude.ai (del que tambié
 | Dirección                            | Qué es                                                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dualstudio.app/planifica`           | Iniciar sesión. Con un solo cliente se entra directo; con varios, se elige. También está «Tu cuenta» (nombre, contraseña, cerrar sesiones). |
-| `dualstudio.app/planifica/<cliente>` | La parrilla del cliente: Lista, Calendario, Objetivos, Pauta y Resultados.                                                                  |
+| `dualstudio.app/planifica/<cliente>` | La parrilla del cliente: Rendimiento, Lista, Calendario, Objetivos y Pauta.                                                                 |
 | `dualstudio.app/planifica/admin`     | Clientes y equipo (solo administradores).                                                                                                   |
 
 ## Papeles
@@ -51,12 +51,12 @@ Un cliente sin acceso responde como si no existiera, y ninguna consulta cruza cl
 
 ## Métricas de Instagram
 
-Planifica trae las métricas de la cuenta de Instagram de cada cliente y las muestra en cada post, en la pestaña **Resultados** y en **Objetivos**.
+Planifica trae las métricas de la cuenta de Instagram de cada cliente y las muestra en cada post, en la pestaña **Rendimiento** y en **Objetivos**.
 
 - **Conectar:** en Clientes y equipo → **Instagram**, un administrador pega el token de la cuenta (se genera en la app de Meta «Planifica Dual Studio», con la cuenta agregada como evaluadora). Se guarda cifrado y nunca sale del servidor. Planifica lo renueva sola cuando le quedan menos de 10 días.
 - **Vincular cada post:** en el post, campo **Link en Instagram**. Al pegarlo se busca la publicación en la cuenta y se traen sus métricas al momento: alcance, reproducciones, interacciones, likes, comentarios, compartidos y guardados. La miniatura se guarda como imagen propia (WebP de 320 px) y cuenta dentro de los 50 MB del cliente.
 - **Cada mañana:** una tarea programada (`triggers` en `wrangler.jsonc`) corre cada 10 minutos entre las 6:00 y las 7:50 (hora de Venezuela). Guarda los seguidores del día, las cifras de la cuenta del día anterior, la audiencia por hora (una vez por semana) y las métricas de todos los posts vinculados. Cada ejecución hace como mucho 45 llamadas a Instagram (el plan gratuito permite 50) y deja lo que falte para la siguiente.
-- **Botón Actualizar:** en el post y en Resultados, una vez cada 15 minutos por cliente.
+- **Botón Actualizar:** en el post y en Rendimiento, una vez cada 15 minutos por cliente.
 - **Objetivos:** en una métrica de Instagram se elige de dónde sale el valor real (seguidores, alcance, reproducciones, interacciones o publicaciones del mes). Si alguien escribe un valor a mano, manda sobre el automático.
 - **Secretos:** `TOKENS_KEY` (opcional) cifra los tokens; si falta, se usa `SESSION_SECRET`. Si cambias ese secreto, hay que volver a pegar los tokens.
 - **TikTok:** pendiente (su conexión necesita el botón «Conectar» con inicio de sesión).
