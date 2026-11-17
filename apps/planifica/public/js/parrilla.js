@@ -639,8 +639,8 @@
       "<span>Publicados</span></button>";
     if (isList && S.lgroup === "estado") h += '<span class="hits">Agrupado por estado</span>';
     if (legend) {
-      h += '<div class="legend">' + FORMAT_ORDER.map(function (k) {
-        return '<span class="tag f-' + k + '">' + fIcon(k) + FORMATS[k].label + "</span>";
+      h += '<div class="legend">' + Object.keys(STATUS).map(function (k) {
+        return stPill(k);
       }).join("") + "</div>";
     }
     h += "</div>";
@@ -844,7 +844,7 @@
       st = STATUS[p.status] ? p.status : "idea",
       f = FORMATS[p.format] || FORMATS.reel,
       pl = platAbbr(p);
-    return '<a class="chip f-' + esc(p.format) + (pub ? " pub" : "") + '" href="#post-' +
+    return '<a class="chip s-' + st + (pub ? " pub" : "") + '" href="#post-' +
       esc(p.id) + '" data-drag="' + esc(p.id) + '" draggable="false" title="' +
       esc(p.title || "Sin título") + '">' +
       '<span class="ct">' + (esc(p.title) || "Sin título") + "</span>" +

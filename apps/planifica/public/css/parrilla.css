@@ -2109,4 +2109,26 @@
   .chip.pub:hover {
     opacity: 1;
   }
+
+  /* Calendario: cada post toma el color de su estado (no el de su formato) */
+  .chip.s-idea {
+    --c: var(--ink-2);
+    --cbg: var(--line-2);
+  }
+  .chip.s-porproducir {
+    --c: var(--warn);
+    --cbg: var(--warn-bg);
+  }
+  .chip.s-produccion {
+    --c: var(--accent);
+    --cbg: var(--accent-bg);
+  }
+  .chip.s-listo {
+    --c: var(--ok);
+    --cbg: var(--ok-bg);
+  }
+  .chip.s-publicado {
+    --c: var(--accent-ink);
+    --cbg: var(--ink);
+  }
 }
