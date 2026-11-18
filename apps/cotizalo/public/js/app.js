@@ -243,11 +243,30 @@ function renderAviso() {
 
 function renderChips() {
   const cats = [{ id: "", nombre: "Todas" }, ...S.cat.categorias];
-  $("#chips").innerHTML = cats.map((c) =>
+  const el = $("#chips");
+  const x = el.scrollLeft; // en el celular la línea se desliza: no volver al inicio al elegir
+  el.innerHTML = cats.map((c) =>
     `<button type="button" class="chip ${S.catId === c.id ? "on" : ""}" data-act="cat" data-id="${
       esc(c.id)
-    }">${esc(c.nombre)}</button>`
+    }" aria-pressed="${S.catId === c.id}">${esc(c.nombre)}</button>`
   ).join("");
+  el.scrollLeft = x;
+  marcarFinChips();
+}
+
+/** Sin desvanecido a la derecha cuando ya se ve la última categoría. */
+function marcarFinChips() {
+  const el = $("#chips");
+  if (el) el.classList.toggle("al-final", el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+}
+
+/** La categoría elegida queda a la vista (en el celular, la línea se desliza hasta ella). */
+function mostrarChipElegido() {
+  const el = $("#chips");
+  const on = el?.querySelector(".chip.on");
+  if (!on || el.scrollWidth <= el.clientWidth) return;
+  const centro = on.offsetLeft - (el.clientWidth - on.offsetWidth) / 2;
+  el.scrollTo({ left: Math.max(0, centro), behavior: "smooth" });
 }
 
 function filtrar() {
@@ -959,7 +978,14 @@ function medirCabecera() {
   const top = $("header.top");
   if (top) document.documentElement.style.setProperty("--alto-top", `${top.offsetHeight}px`);
 }
-window.addEventListener("resize", medirCabecera);
+window.addEventListener("resize", () => {
+  medirCabecera();
+  marcarFinChips();
+});
+// scroll no burbujea: se escucha en fase de captura para no atarlo a cada pintado de #chips
+document.addEventListener("scroll", (e) => {
+  if (e.target?.id === "chips") marcarFinChips();
+}, { capture: true, passive: true });
 
 // Ratón: evita que el buscador pierda el foco al tocar un botón de la lista (en el teléfono, el teclado no
 // llega a cerrarse). En pantallas táctiles se recuerda si estaba abierto para devolverle el foco en el clic.
@@ -1024,6 +1050,7 @@ document.addEventListener("click", (e) => {
     case "cat":
       S.catId = id;
       renderChips();
+      mostrarChipElegido();
       renderLista();
       break;
     case "tab":

@@ -142,6 +142,36 @@
     padding-bottom: 110px;
   }
 
+  /* Categorías en el celular: una sola línea que se desliza con el dedo, en vez de tres o cuatro filas.
+     Llegan hasta el borde de la pantalla y se desvanecen a la derecha para que se note que hay más. */
+  @media (max-width: 719px) {
+    .patient #chips {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x proximity;
+      scroll-padding-inline: 16px;
+      scrollbar-width: none;
+      margin-left: -16px;
+      margin-right: -16px;
+      padding: 2px 16px;
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    }
+    .patient #chips::-webkit-scrollbar {
+      display: none;
+    }
+    .patient #chips .chip {
+      flex: none;
+      scroll-snap-align: start;
+    }
+    /* Al final de la línea ya no hay nada más: sin desvanecido */
+    .patient #chips.al-final {
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+  }
+
   /* Buscador del paciente: se queda pegado bajo la cabecera para agregar varios exámenes seguidos */
   .buscador {
     position: sticky;
