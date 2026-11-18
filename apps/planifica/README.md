@@ -53,6 +53,8 @@ Un cliente sin acceso responde como si no existiera, y ninguna consulta cruza cl
 
 Planifica trae las métricas de la cuenta de Instagram de cada cliente y las muestra en cada post, en la pestaña **Rendimiento** y en **Objetivos**.
 
+Las **historias** no tienen métricas ni impulsos: no muestran el link de Instagram, no cuentan en Rendimiento ni en Objetivos y no se pueden elegir al registrar un impulso.
+
 - **Conectar con Meta:** en Clientes y equipo → **Instagram → Conectar con Meta**. Lleva a Meta (app «Planifica Dual Studio», configuración de inicio de sesión unificado), donde se elige la cuenta de Instagram del cliente y su cuenta publicitaria; al volver, Planifica guarda el token de usuario del sistema (no vence) cifrado y lee todo de `graph.facebook.com` (`src/redes/meta.js`). Si se autorizan varias cuentas, pregunta cuál es la del cliente.
   - Hace falta el secreto **`META_APP_SECRET`** (la clave secreta de la app de Meta) en Cloudflare, en producción y en las vistas previas. `META_APP_ID` y `META_CONFIG_ID` están en `wrangler.jsonc`.
   - En la configuración de Meta se registra la dirección de vuelta: `https://dualstudio.app/planifica/redes/meta/vuelta` (y la de las vistas previas, con su dominio).

@@ -2384,8 +2384,12 @@
     guardados: "Guardados",
   };
   var MET_ORDER = ["alcance", "reproducciones", "interacciones", "likes", "comentarios", "compartidos", "guardados"];
+  /** Las historias no tienen métricas ni impulsos: solo cuentan los posts del feed y los reels. */
+  function medible(p) {
+    return p.format !== "historia";
+  }
   function hasIg(p) {
-    return (p.platforms || []).indexOf("ig") >= 0;
+    return medible(p) && (p.platforms || []).indexOf("ig") >= 0;
   }
   /** Resumen corto para la Lista: alcance y likes de un post publicado. */
   function igSummary(p) {
@@ -3263,7 +3267,7 @@
     S.impOpen = { id: id || null };
     var sel = i ? i.publicacion_id : postId || "";
     var posts = allPosts().filter(function (p) {
-      return p.id === sel || (p.status === "publicado" && p.date);
+      return p.id === sel || (p.status === "publicado" && p.date && medible(p));
     }).sort(function (a, b) {
       return (b.date || "").localeCompare(a.date || "");
     });
@@ -3418,7 +3422,7 @@
     var card = $("#adsCard");
     if (!card) return;
     var list = impulsosDe(p.id);
-    card.hidden = !list.length && !(S.canWrite && p.status === "publicado");
+    card.hidden = !list.length && !(S.canWrite && p.status === "publicado" && medible(p));
     var body = adsCardBody(p), b = $("#adsBody");
     if (b.dataset.sig !== body) {
       b.innerHTML = body;
