@@ -393,12 +393,15 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** Chip de promoción: solo el descuento («−20 %»). El nombre y la fecha van en el anuncio de arriba. */
+/**
+ * Chip de promoción: el emoji de promociones y el descuento («🏷️ −20 %»). El nombre y la fecha van en el
+ * anuncio de arriba.
+ */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
   return `<span class="promo-tag" title="${
     esc(x.promo.nombre || "Promoción")
-  }">−${x.promo.porcentaje} %</span>`;
+  }"><span aria-hidden="true">🏷️</span> −${x.promo.porcentaje} %</span>`;
 }
 
 /**
