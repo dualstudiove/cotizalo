@@ -1,6 +1,6 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // El PDF sale del motor de maquetación (layoutDoc); la imagen es vertical y más sencilla, para estados y chats.
-import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
+import { bs, diaLocal, esc, fmtFecha, fmtTasa, icon, ref } from "./common.js";
 import { CLARO } from "../_ds/diseno/js/tokens.js";
 import { ICONOS } from "../_ds/diseno/js/iconos.js";
 
@@ -89,14 +89,11 @@ const contacto = (d) =>
   );
 
 // ─────────────────────────── Texto ───────────────────────────
-/** REF sin ceros de más, para el texto: «4 REF», «2,5 REF», «87,5 REF», «1.234,25 REF». */
-const refCorto = (c) => `${fmtNum(c).replace(/,00$/, "").replace(/(,\d)0$/, "$1")} REF`;
-
 // Lista sencilla para pegar en un chat: los exámenes con su precio, los totales, la tasa, la fecha de los
 // precios y el enlace para armar otro presupuesto. El resto (negocio, código, paciente…) va en el PDF y la imagen.
 export function toText(d) {
-  const L = d.items.map((it) => `${it.nombre}: ${refCorto(it.precio_cent)}`);
-  L.push("", `Total: ${refCorto(d.totalRef)}`);
+  const L = d.items.map((it) => `${it.nombre}: ${ref(it.precio_cent)}`);
+  L.push("", `Total: ${ref(d.totalRef)}`);
   if (d.tasa) L.push(`Total en bolívares: ${bs(d.totalBs)}`, "", tasaTexto(d));
   if (d.precios) L.push("", `Precios actualizados el ${fmtFecha(d.precios)}.`);
   if (d.enlace) L.push("", `Haz tu presupuesto en: https://${d.enlace}`);

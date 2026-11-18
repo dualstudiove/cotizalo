@@ -37,7 +37,9 @@ export const api = crearApi((path) => {
 });
 
 // ── Precios: REF (referencial) y bolívares ──
-export const ref = (c) => `${fmtNum(c)} REF`; // la unidad va DESPUÉS de la cifra
+// La unidad va DESPUÉS de la cifra, sin decimales que no hacen falta: «5 REF», «4,5 REF», «1.234,25 REF».
+// Los bolívares sí llevan siempre dos decimales.
+export const ref = (c) => `${fmtNum(c).replace(/,00$/, "").replace(/(,\d)0$/, "$1")} REF`;
 export const bs = (c) => `${fmtNum(c)} Bs.`;
 export function fmtTasa(v) {
   const [e, d] = Number(v).toFixed(4).split(".");

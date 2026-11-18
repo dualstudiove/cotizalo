@@ -269,16 +269,93 @@ function mostrarChipElegido() {
   el.scrollTo({ left: Math.max(0, centro), behavior: "smooth" });
 }
 
+// ───────────── Búsqueda ─────────────
+// Cada palabra escrita tiene que aparecer en el nombre (o la descripción). Si no aparece tal cual, se acepta
+// con una letra equivocada, de más o de menos (dos en palabras largas): «hemotologia» encuentra «Hematología».
+// Lo que coincide tal cual va primero. La palabra «perfil» lleva a la pestaña Perfiles y no se busca.
+const ES_PERFIL = /^perfil(es)?$/;
+const palabrasDe = (q) => norm(q).split(/[^a-z0-9ñ]+/).filter(Boolean);
+
+/** Distancia de edición (con letras intercambiadas) entre a y b; corta en cuanto pasa de max. */
+function distancia(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let ant2 = null;
+  let ant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const fila = [i];
+    let menor = i;
+    for (let j = 1; j <= b.length; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(ant[j] + 1, fila[j - 1] + 1, ant[j - 1] + c);
+      if (ant2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        v = Math.min(v, ant2[j - 2] + 1);
+      }
+      fila.push(v);
+      menor = Math.min(menor, v);
+    }
+    if (menor > max) return max + 1;
+    ant2 = ant;
+    ant = fila;
+  }
+  return ant[b.length];
+}
+
+/**
+ * 2 = todas las palabras aparecen tal cual · 1 = alguna con un error de tipeo · 0 = no coincide.
+ * Una palabra a medio escribir vale: «hemotol» se compara con el comienzo de «hematologia».
+ */
+function coincide(palabras, texto) {
+  if (!palabras.length) return 2;
+  const t = norm(texto);
+  const enTexto = t.split(/[^a-z0-9ñ]+/).filter(Boolean);
+  let nota = 2;
+  for (const p of palabras) {
+    if (t.includes(p)) continue;
+    const max = p.length >= 8 ? 2 : p.length >= 4 ? 1 : 0;
+    const casi = max && enTexto.some((w) =>
+      distancia(p, w, max) <= max || distancia(p, w.slice(0, p.length), max) <= max
+    );
+    if (!casi) return 0;
+    nota = 1;
+  }
+  return nota;
+}
+
+/** Filtra y ordena: primero lo que coincide tal cual, después lo que tiene un error de tipeo. */
+function buscar(lista, palabras, textos) {
+  if (!palabras.length) return lista;
+  return lista.map((x, i) => ({ x, i, n: Math.max(...textos(x).map((t) => coincide(palabras, t))) }))
+    .filter((r) => r.n > 0)
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map((r) => r.x);
+}
+
+/** «perfil…» en la búsqueda: pasa a la pestaña Perfiles (y vuelve a Exámenes si se borra y fue automático). */
+function pestanaPorBusqueda() {
+  const pide = palabrasDe(S.q).some((p) => ES_PERFIL.test(p));
+  if (pide && S.tab !== "perfiles") {
+    S.tab = "perfiles";
+    S.tabAuto = true;
+  } else if (!pide && S.tabAuto) {
+    S.tab = "examenes";
+    S.tabAuto = false;
+  }
+}
+
 function filtrar() {
-  const q = norm(S.q.trim());
-  const ex = S.cat.examenes.filter((e) =>
-    (!S.catId || e.categoria_id === S.catId) &&
-    (!q || norm(e.nombre).includes(q) || norm(e.descripcion).includes(q))
+  const palabras = palabrasDe(S.q).filter((p) => !ES_PERFIL.test(p));
+  const ex = buscar(
+    S.cat.examenes.filter((e) => !S.catId || e.categoria_id === S.catId),
+    palabras,
+    (e) => [`${e.nombre} ${e.descripcion || ""}`],
   );
-  const pf = S.cat.perfiles.filter((p) =>
-    (!S.catId ||
-      p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId)) &&
-    (!q || norm(p.nombre).includes(q) || p.examenes.some((m) => norm(m.nombre).includes(q)))
+  const pf = buscar(
+    S.cat.perfiles.filter((p) =>
+      !S.catId ||
+      p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId)
+    ),
+    palabras,
+    (p) => [p.nombre, ...p.examenes.map((m) => m.nombre)],
   );
   return { ex, pf };
 }
@@ -348,7 +425,7 @@ function contador(e, donde) {
 function cardPerfil(p) {
   const sel = S.pf.includes(p.id);
   const info = pfMap.get(p.id);
-  return `<article class="item ${sel ? "sel" : ""}">
+  return `<article class="item perfil ${sel ? "sel" : ""}">
     <div><h3>${esc(p.nombre)}</h3>
       <div class="meta"><span class="badge">Perfil · ${p.examenes.length} exámenes</span>${
     etiquetaPromo(p)
@@ -570,7 +647,17 @@ function renderOk() {
     return;
   }
   const nom = `presupuesto-${S.res.codigo}`;
+  // Arriba, como en «Revisa»: volver a cambiar los exámenes (a la izquierda) o empezar otro (a la derecha)
   el.innerHTML = `
+    <div class="res-head"><button type="button" class="btn btn-ghost back" data-act="editar">${
+    icon("back")
+  } Cambiar exámenes</button>
+      <button type="button" class="btn btn-soft btn-sm" data-act="nuevo">${
+    icon("plus")
+  } Nuevo presupuesto</button></div>
+    <ol class="pasos" aria-label="Pasos"><li class="hecho"><i>${icon("check")}</i>Elige</li><li class="hecho"><i>${
+    icon("check")
+  }</i>Revisa</li><li class="hecho" aria-current="step"><i>${icon("check")}</i>Genera</li></ol>
     <div class="notice ok">${icon("check")}<div>Presupuesto <b>${
     esc(S.res.codigo)
   }</b> generado. Guárdalo en tu teléfono y muéstralo en el laboratorio.</div></div>
@@ -589,12 +676,7 @@ function renderOk() {
   }
     </div>
     <details class="card" style="padding:0 16px"><summary style="cursor:pointer;font-weight:600;min-height:48px;display:flex;align-items:center">Agregar o cambiar datos del paciente</summary><div style="padding-bottom:6px">${formPaciente()}</div></details>
-    <div class="paper" id="paper" style="margin-top:14px">${paperHTML(docActual())}</div>
-    <div class="actions"><button type="button" class="btn" data-act="editar">${
-    icon("edit")
-  } Editar presupuesto</button><button type="button" class="btn" data-act="nuevo">${
-    icon("plus")
-  } Nuevo presupuesto</button></div>`;
+    <div class="paper" id="paper" style="margin-top:14px">${paperHTML(docActual())}</div>`;
 }
 
 /**
@@ -987,6 +1069,28 @@ document.addEventListener("scroll", (e) => {
   if (e.target?.id === "chips") marcarFinChips();
 }, { capture: true, passive: true });
 
+// Celular: mientras se busca, la cabecera se esconde (CSS: body.buscando) y el buscador sube hasta arriba.
+// Al salir se espera un momento: tras agregar un examen el foco vuelve enseguida y no conviene que parpadee.
+let salirBusqueda = 0;
+document.addEventListener("focusin", (e) => {
+  if (e.target.id !== "q" || !MOVIL.matches) return;
+  clearTimeout(salirBusqueda);
+  if (document.body.classList.contains("buscando")) return;
+  document.body.classList.add("buscando");
+  const aviso = $("#aviso");
+  if (aviso) {
+    const destino = aviso.getBoundingClientRect().bottom + window.scrollY;
+    if (window.scrollY < destino) window.scrollTo({ top: destino });
+  }
+});
+document.addEventListener("focusout", (e) => {
+  if (e.target.id !== "q") return;
+  clearTimeout(salirBusqueda);
+  salirBusqueda = setTimeout(() => {
+    if (document.activeElement?.id !== "q") document.body.classList.remove("buscando");
+  }, 250);
+});
+
 // Ratón: evita que el buscador pierda el foco al tocar un botón de la lista (en el teléfono, el teclado no
 // llega a cerrarse). En pantallas táctiles se recuerda si estaba abierto para devolverle el foco en el clic.
 document.addEventListener("pointerdown", (e) => {
@@ -1027,9 +1131,18 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ───────────── Eventos ─────────────
+// En el celular la tarjeta no agrega (solo el botón): en un perfil, tocarla abre o cierra sus exámenes
+const MOVIL = matchMedia("(max-width: 719px), (pointer: coarse)");
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-act]");
-  if (!b) return;
+  if (!b) {
+    const tarjeta = e.target.closest("article.item.perfil");
+    if (tarjeta && MOVIL.matches && !e.target.closest("details, a, button, input")) {
+      const det = tarjeta.querySelector("details");
+      if (det) det.open = !det.open;
+    }
+    return;
+  }
   const { act, id } = b.dataset;
   const conBuscador = buscandoAlTocar || document.activeElement?.id === "q";
   buscandoAlTocar = false;
@@ -1042,6 +1155,7 @@ document.addEventListener("click", (e) => {
       const inp = $("#q");
       inp.value = "";
       S.q = "";
+      pestanaPorBusqueda();
       renderLista();
       pintarBuscador();
       inp.focus();
@@ -1055,6 +1169,7 @@ document.addEventListener("click", (e) => {
       break;
     case "tab":
       S.tab = id;
+      S.tabAuto = false; // la eligió la persona: no se cambia sola
       renderLista();
       break;
     case "ex":
@@ -1119,6 +1234,7 @@ document.addEventListener("input", (e) => {
   const t = e.target;
   if (t.id === "q") {
     S.q = t.value;
+    pestanaPorBusqueda();
     renderLista();
     pintarBuscador();
     subirAResultados();
