@@ -240,17 +240,63 @@ function renderRate() {
   bar.innerHTML = `<b>1 REF = ${fmtTasa(t.valor)} Bs.</b> · ${ley}${ej}`;
 }
 
+// ───────────── Anuncio de promociones ─────────────
+// Las promociones de hoy salen de los exámenes y perfiles que tienen una (nombre + fecha de fin la identifican).
+function promosActivas() {
+  const m = new Map();
+  for (const [tipo, lista] of [["ex", S.cat.examenes], ["pf", S.cat.perfiles]]) {
+    for (const x of lista) {
+      if (!x.promo) continue;
+      const clave = `${x.promo.nombre || ""}|${x.promo.hasta}`;
+      if (!m.has(clave)) {
+        m.set(clave, { clave, nombre: x.promo.nombre, hasta: x.promo.hasta, pcts: new Set(), ex: 0, pf: 0 });
+      }
+      const p = m.get(clave);
+      p.pcts.add(x.promo.porcentaje);
+      p[tipo]++;
+    }
+  }
+  return [...m.values()];
+}
+const promoCerrada = (clave) => !!leer(localStorage, `promo:${clave}`);
+
+function anuncioPromo(p) {
+  const max = Math.max(...p.pcts);
+  const cuanto = p.pcts.size > 1 ? `Hasta −${max} %` : `−${max} %`;
+  const que = [
+    p.ex && `${p.ex} ${p.ex === 1 ? "examen" : "exámenes"}`,
+    p.pf && `${p.pf} ${p.pf === 1 ? "perfil" : "perfiles"}`,
+  ].filter(Boolean).join(" y ");
+  return `<div class="promo-anuncio" role="region" aria-label="Promoción">
+    <span class="emoji" aria-hidden="true">🎉</span>
+    <div class="txt"><b>${esc(p.nombre || "¡Promoción!")}</b>
+      <span><strong>${cuanto}</strong> en ${que} · hasta el ${fechaCorta(p.hasta)}</span>
+      <button type="button" class="btn btn-sm ver" data-act="verpromo">Ver en promoción</button></div>
+    <button type="button" class="cerrar" data-act="cerrarpromo" data-id="${
+    esc(p.clave)
+  }" aria-label="Cerrar el anuncio">×</button>
+  </div>`;
+}
+
 function renderAviso() {
   const fecha = S.cfg.precios_actualizados_en ? diaLocal(S.cfg.precios_actualizados_en) : null;
-  $("#aviso").innerHTML = fecha
-    ? `<div class="notice">${icon("info")}<div>Última actualización de precios: <b>${
-      fmtFecha(fecha)
-    }</b></div></div>`
-    : "";
+  // Primero las promociones (cada una se puede cerrar y no vuelve a salir en este teléfono)
+  const promos = promosActivas().filter((p) => !promoCerrada(p.clave));
+  $("#aviso").innerHTML = promos.map(anuncioPromo).join("") + (
+    fecha
+      ? `<div class="notice">${icon("info")}<div>Última actualización de precios: <b>${
+        fmtFecha(fecha)
+      }</b></div></div>`
+      : ""
+  );
 }
 
 function renderChips() {
-  const cats = [{ id: "", nombre: "Todas" }, ...S.cat.categorias];
+  const cats = [
+    { id: "", nombre: "Todas" },
+    ...(promosActivas().length ? [{ id: "promo", nombre: "🏷️ Promociones" }] : []),
+    ...S.cat.categorias,
+  ];
   const el = $("#chips");
   const x = el.scrollLeft; // en el celular la línea se desliza: no volver al inicio al elegir
   el.innerHTML = cats.map((c) =>
@@ -364,14 +410,18 @@ function pestanaPorBusqueda() {
 function filtrar() {
   const palabras = palabrasDe(S.q).filter((p) => !ES_PERFIL.test(p));
   const ex = buscar(
-    S.cat.examenes.filter((e) => !S.catId || e.categoria_id === S.catId),
+    S.cat.examenes.filter((e) =>
+      !S.catId || (S.catId === "promo" ? !!e.promo : e.categoria_id === S.catId)
+    ),
     palabras,
     (e) => [`${e.nombre} ${e.descripcion || ""}`, ...aliasDe(e)],
   );
   const pf = buscar(
     S.cat.perfiles.filter((p) =>
       !S.catId ||
-      p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId)
+      (S.catId === "promo"
+        ? !!p.promo
+        : p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId))
     ),
     palabras,
     (p) => [p.nombre, ...p.examenes.flatMap((m) => [m.nombre, ...aliasDe(m)])],
@@ -386,15 +436,19 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** Chip «Mes Rosa · −20 % hasta el 30/11» en el color de información (el año solo si no es el actual). */
+/** Chip de promoción: solo el descuento («−20 %»). El nombre y la fecha van en el anuncio de arriba. */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
-  const f = fmtFecha(x.promo.hasta);
-  const corta = x.promo.hasta.slice(0, 4) === String(new Date().getFullYear()) ? f.slice(0, 5) : f;
-  return `<span class="promo-tag">${
-    x.promo.nombre ? `${esc(x.promo.nombre)} · ` : ""
-  }−${x.promo.porcentaje} % hasta el ${corta}</span>`;
+  return `<span class="promo-tag" title="${esc(x.promo.nombre || "Promoción")}">−${
+    x.promo.porcentaje
+  } %</span>`;
 }
+
+/** Fecha corta «30/11» (con año solo si no es el actual). */
+const fechaCorta = (dia) => {
+  const f = fmtFecha(dia);
+  return dia.slice(0, 4) === String(new Date().getFullYear()) ? f.slice(0, 5) : f;
+};
 
 /**
  * Botón de agregar de una tarjeta. En el celular es un círculo grande solo con el ícono (+ / ✓) y el texto
@@ -1200,6 +1254,22 @@ document.addEventListener("click", (e) => {
       renderLista();
       pintarBuscador();
       inp.focus();
+      break;
+    }
+    case "cerrarpromo":
+      guardar(localStorage, `promo:${id}`, 1);
+      renderAviso();
+      break;
+    case "verpromo": {
+      // Filtro «Promociones»; si no hay exámenes en promoción, a la pestaña de perfiles
+      S.catId = "promo";
+      const { ex, pf } = filtrar();
+      if (!ex.length && pf.length) S.tab = "perfiles";
+      else if (ex.length && !pf.length) S.tab = "examenes";
+      renderChips();
+      mostrarChipElegido();
+      renderLista();
+      $("#chips")?.scrollIntoView({ behavior: "smooth", block: "start" });
       break;
     }
     case "cat":

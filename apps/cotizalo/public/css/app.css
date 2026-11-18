@@ -495,19 +495,100 @@
     color: var(--ink-3);
     margin-right: 2px;
   }
-  /* Chip de promoción en el color de información. Esquinas poco redondeadas (no píldora) para que, si el
-     nombre es largo y baja de línea, siga viéndose como un chip y no se deforme. */
+  /* Chip de promoción: solo el descuento («−20 %»), en el color de información */
   .promo-tag {
     display: inline-block;
-    max-width: 100%;
-    padding: 3px 8px;
+    padding: 2px 8px;
     border-radius: 6px;
     background: var(--info-bg);
     color: var(--info);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1.35;
+    white-space: nowrap;
   }
+
+  /* «Ver en promoción» lleva hasta las categorías sin que queden debajo de la cabecera fija */
+  #chips {
+    scroll-margin-top: calc(var(--alto-top, 61px) + 12px);
+  }
+
+  /* Anuncio de promoción al inicio: en el color del negocio para que resalte, con emoji y se puede cerrar */
+  .promo-anuncio {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 48px 14px 14px;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: var(--shadow-pop);
+  }
+  .promo-anuncio + .promo-anuncio,
+  .promo-anuncio + .notice {
+    margin-top: 10px;
+  }
+  .promo-anuncio .emoji {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+    line-height: 1;
+    background: color-mix(in srgb, var(--accent-ink) 18%, transparent);
+  }
+  .promo-anuncio .txt {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .promo-anuncio b {
+    font-family: var(--font-display);
+    font-size: 17px;
+    line-height: 1.25;
+  }
+  .promo-anuncio .txt > span {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .promo-anuncio strong {
+    font-weight: 700;
+  }
+  .promo-anuncio .ver {
+    margin-top: 8px;
+    border: 0;
+    background: var(--accent-ink);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .promo-anuncio .ver:hover {
+    filter: brightness(0.95);
+  }
+  .promo-anuncio .cerrar {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.85;
+  }
+  .promo-anuncio .cerrar:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent-ink) 15%, transparent);
+  }
+
   /* Indicaciones: ícono y texto en la misma línea; si el texto es largo, baja junto al ícono */
   .item .meta.ind {
     flex-wrap: nowrap;
