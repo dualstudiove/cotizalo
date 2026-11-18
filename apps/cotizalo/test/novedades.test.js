@@ -153,7 +153,23 @@ test("promociones: la mayor gana, el presupuesto guarda el precio con descuento 
   });
   assert.equal(a.status, 200);
   assert.equal(b.status, 200);
-  const pub = (await catalogoPublico()).examenes.find((e) => e.id === tri.id);
+  const catPub = await catalogoPublico();
+  // Para el anuncio del inicio: cada promoción de hoy con lo que abarca (por tipo)
+  const anuncio = catPub.promociones.find((p) => p.id === a.json.id);
+  assert.deepEqual(
+    { ...anuncio, id: undefined },
+    {
+      id: undefined,
+      nombre: "Mes de la química",
+      porcentaje: 10,
+      hasta: hoy,
+      examenes: [],
+      categorias: [tri.categoria_id],
+      perfiles: [],
+    },
+  );
+  assert.deepEqual(catPub.promociones.find((p) => p.id === b.json.id).examenes, [tri.id]);
+  const pub = catPub.examenes.find((e) => e.id === tri.id);
   assert.equal(pub.precio_lista_cent, tri.precio_cent);
   assert.equal(pub.precio_cent, Math.round(tri.precio_cent * 0.75));
   assert.equal(pub.promo.porcentaje, 25);

@@ -513,21 +513,22 @@
     scroll-margin-top: calc(var(--alto-top, 61px) + 12px);
   }
 
-  /* Anuncio de promoción al inicio: en el color del negocio para que resalte, con emoji y se puede cerrar */
+  /* Anuncio de promociones al inicio: caja de superficie (blanca en claro) con 🎉, botón en tinta (negro con
+     letras blancas en claro) y × para cerrarlo. Varias promociones van una debajo de otra. */
   .promo-anuncio {
     position: relative;
     display: flex;
     align-items: flex-start;
     gap: 12px;
     padding: 14px 48px 14px 14px;
+    border: 1px solid var(--line);
     border-radius: 14px;
-    background: var(--accent);
-    color: var(--accent-ink);
+    background: var(--surface);
+    color: var(--ink);
     box-shadow: var(--shadow-pop);
   }
-  .promo-anuncio + .promo-anuncio,
   .promo-anuncio + .notice {
-    margin-top: 10px;
+    margin-top: 12px;
   }
   .promo-anuncio .emoji {
     flex: none;
@@ -538,36 +539,49 @@
     place-items: center;
     font-size: 28px;
     line-height: 1;
-    background: color-mix(in srgb, var(--accent-ink) 18%, transparent);
+    background: var(--accent-bg);
   }
   .promo-anuncio .txt {
+    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+  }
+  .promo-anuncio .una {
+    display: flex;
+    flex-direction: column;
     gap: 2px;
+    width: 100%;
+  }
+  .promo-anuncio .una + .una {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-2);
   }
   .promo-anuncio b {
     font-family: var(--font-display);
     font-size: 17px;
     line-height: 1.25;
   }
-  .promo-anuncio .txt > span {
+  .promo-anuncio .una > span {
     font-size: 14px;
+    font-weight: 600;
     line-height: 1.4;
   }
-  .promo-anuncio strong {
-    font-weight: 700;
+  .promo-anuncio small {
+    font-size: 12px;
+    color: var(--ink-3);
   }
   .promo-anuncio .ver {
-    margin-top: 8px;
+    margin-top: 12px;
     border: 0;
-    background: var(--accent-ink);
-    color: var(--accent);
+    background: var(--ink);
+    color: var(--surface);
     font-weight: 600;
   }
   .promo-anuncio .ver:hover {
-    filter: brightness(0.95);
+    background: var(--ink-2);
   }
   .promo-anuncio .cerrar {
     position: absolute;
@@ -578,15 +592,14 @@
     border: 0;
     border-radius: 999px;
     background: transparent;
-    color: inherit;
+    color: var(--ink-3);
     font-size: 24px;
     line-height: 1;
     cursor: pointer;
-    opacity: 0.85;
   }
   .promo-anuncio .cerrar:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--accent-ink) 15%, transparent);
+    color: var(--ink);
+    background: var(--surface-2);
   }
 
   /* Indicaciones: ícono y texto en la misma línea; si el texto es largo, baja junto al ícono */

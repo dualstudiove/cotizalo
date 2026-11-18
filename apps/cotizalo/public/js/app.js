@@ -241,48 +241,80 @@ function renderRate() {
 }
 
 // ───────────── Anuncio de promociones ─────────────
-// Las promociones de hoy salen de los exámenes y perfiles que tienen una (nombre + fecha de fin la identifican).
-function promosActivas() {
-  const m = new Map();
-  for (const [tipo, lista] of [["ex", S.cat.examenes], ["pf", S.cat.perfiles]]) {
-    for (const x of lista) {
-      if (!x.promo) continue;
-      const clave = `${x.promo.nombre || ""}|${x.promo.hasta}`;
-      if (!m.has(clave)) {
-        m.set(clave, { clave, nombre: x.promo.nombre, hasta: x.promo.hasta, pcts: new Set(), ex: 0, pf: 0 });
-      }
-      const p = m.get(clave);
-      p.pcts.add(x.promo.porcentaje);
-      p[tipo]++;
-    }
-  }
-  return [...m.values()];
-}
-const promoCerrada = (clave) => !!leer(localStorage, `promo:${clave}`);
+/** «a», «a y b», «a, b y c» */
+const enLista = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs.at(-1)}`);
 
-function anuncioPromo(p) {
-  const max = Math.max(...p.pcts);
-  const cuanto = p.pcts.size > 1 ? `Hasta −${max} %` : `−${max} %`;
-  const que = [
-    p.ex && `${p.ex} ${p.ex === 1 ? "examen" : "exámenes"}`,
-    p.pf && `${p.pf} ${p.pf === 1 ? "perfil" : "perfiles"}`,
-  ].filter(Boolean).join(" y ");
-  return `<div class="promo-anuncio" role="region" aria-label="Promoción">
+/**
+ * Lo que abarca una promoción, en una frase:
+ *  · exámenes sueltos: «−20 % en 5 exámenes» (uno: «en el examen: Glicemia»)
+ *  · categorías: «−20 % en todos los exámenes de hormonas, coagulación y patología»
+ *  · perfiles: «−20 % en el perfil: Perfil básico» / «en los perfiles: Perfil básico y Chequeo ejecutivo»
+ *  · mixto: de lo más amplio a lo más puntual, en una sola frase:
+ *    «−20 % en todos los exámenes de hormonas, 3 exámenes más y el perfil Perfil básico»
+ * Solo cuenta lo que el paciente puede ver (exámenes, categorías y perfiles publicados).
+ */
+function frasePromo(p) {
+  const cats = p.categorias.map((id) => S.cat.categorias.find((c) => c.id === id)).filter(Boolean);
+  const enCat = new Set(cats.map((c) => c.id));
+  const exs = p.examenes.map((id) => exMap.get(id)).filter((e) => e && !enCat.has(e.categoria_id));
+  const pfs = p.perfiles.map((id) => pfMap.get(id)).filter(Boolean);
+  const nombresCat = enLista(cats.map((c) => c.nombre.toLowerCase()));
+  const solo = [cats.length, exs.length, pfs.length].filter(Boolean).length === 1;
+  const pct = `−${p.porcentaje} %`;
+  if (solo && cats.length) return `${pct} en todos los exámenes de ${nombresCat}`;
+  if (solo && exs.length) {
+    return exs.length === 1 ? `${pct} en el examen: ${exs[0].nombre}` : `${pct} en ${exs.length} exámenes`;
+  }
+  if (solo && pfs.length) {
+    return pfs.length === 1
+      ? `${pct} en el perfil: ${pfs[0].nombre}`
+      : `${pct} en los perfiles: ${enLista(pfs.map((x) => x.nombre))}`;
+  }
+  const partes = [];
+  if (cats.length) partes.push(`todos los exámenes de ${nombresCat}`);
+  if (exs.length) {
+    const mas = cats.length ? " más" : "";
+    partes.push(exs.length === 1 && !cats.length ? `el examen ${exs[0].nombre}` : `${exs.length} ${exs.length === 1 ? "examen" : "exámenes"}${mas}`);
+  }
+  if (pfs.length) {
+    partes.push(
+      pfs.length === 1 ? `el perfil ${pfs[0].nombre}` : `los perfiles ${enLista(pfs.map((x) => x.nombre))}`,
+    );
+  }
+  return partes.length ? `${pct} en ${enLista(partes)}` : "";
+}
+
+/** Promociones de hoy con algo visible para el paciente, sin las que cerró en este teléfono. */
+const promoCerrada = (id) => !!leer(localStorage, `promo:${id}`);
+const promosVisibles = () =>
+  (S.cat.promociones || []).map((p) => ({ ...p, frase: frasePromo(p) })).filter((p) => p.frase);
+const hayPromos = () => S.cat.examenes.some((e) => e.promo) || S.cat.perfiles.some((p) => p.promo);
+
+/**
+ * Anuncio del inicio: una caja con 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha).
+ * Un solo «Ver en promoción» y una sola × que las cierra todas.
+ */
+function anuncioPromos(promos) {
+  return `<div class="promo-anuncio" role="region" aria-label="Promociones">
     <span class="emoji" aria-hidden="true">🎉</span>
-    <div class="txt"><b>${esc(p.nombre || "¡Promoción!")}</b>
-      <span><strong>${cuanto}</strong> en ${que} · hasta el ${fechaCorta(p.hasta)}</span>
+    <div class="txt">${
+    promos.map((p) =>
+      `<div class="una"><b>${esc(p.nombre)}</b><span>${esc(p.frase)}</span><small>Hasta el ${
+        fechaCorta(p.hasta)
+      }</small></div>`
+    ).join("")
+  }
       <button type="button" class="btn btn-sm ver" data-act="verpromo">Ver en promoción</button></div>
     <button type="button" class="cerrar" data-act="cerrarpromo" data-id="${
-    esc(p.clave)
-  }" aria-label="Cerrar el anuncio">×</button>
+    esc(promos.map((p) => p.id).join(","))
+  }" aria-label="Cerrar ${promos.length === 1 ? "el anuncio" : "los anuncios"}">×</button>
   </div>`;
 }
 
 function renderAviso() {
   const fecha = S.cfg.precios_actualizados_en ? diaLocal(S.cfg.precios_actualizados_en) : null;
-  // Primero las promociones (cada una se puede cerrar y no vuelve a salir en este teléfono)
-  const promos = promosActivas().filter((p) => !promoCerrada(p.clave));
-  $("#aviso").innerHTML = promos.map(anuncioPromo).join("") + (
+  const promos = promosVisibles().filter((p) => !promoCerrada(p.id));
+  $("#aviso").innerHTML = (promos.length ? anuncioPromos(promos) : "") + (
     fecha
       ? `<div class="notice">${icon("info")}<div>Última actualización de precios: <b>${
         fmtFecha(fecha)
@@ -294,7 +326,7 @@ function renderAviso() {
 function renderChips() {
   const cats = [
     { id: "", nombre: "Todas" },
-    ...(promosActivas().length ? [{ id: "promo", nombre: "🏷️ Promociones" }] : []),
+    ...(hayPromos() ? [{ id: "promo", nombre: "🏷️ Promociones" }] : []),
     ...S.cat.categorias,
   ];
   const el = $("#chips");
@@ -1257,7 +1289,7 @@ document.addEventListener("click", (e) => {
       break;
     }
     case "cerrarpromo":
-      guardar(localStorage, `promo:${id}`, 1);
+      for (const pid of id.split(",")) guardar(localStorage, `promo:${pid}`, 1);
       renderAviso();
       break;
     case "verpromo": {

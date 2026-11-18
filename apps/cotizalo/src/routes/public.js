@@ -107,8 +107,23 @@ export function registrarPublicas(r) {
     // Promociones de hoy: precio_cent ya trae el descuento; precio_lista_cent es el de antes.
     const promos = await promocionesDelDia(negocio.id, hoy());
     const pop = await popularidad(negocio.id);
+    // Qué abarca cada promoción de hoy, para el anuncio del inicio («−20 % en todos los exámenes de hormonas»)
+    const promociones = promos.map((p) => {
+      const de = (tipo) =>
+        [...p.items].filter((k) => k.startsWith(`${tipo}:`)).map((k) => k.slice(tipo.length + 1));
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        porcentaje: p.porcentaje,
+        hasta: p.hasta,
+        examenes: de("examen"),
+        categorias: de("categoria"),
+        perfiles: de("perfil"),
+      };
+    });
     return {
       categorias,
+      promociones,
       examenes: porPopularidad(examenes, pop).map((e) =>
         aplicarPromocion(e, { tipo: "examen", id: e.id, categoria_id: e.categoria_id }, promos)
       ),
