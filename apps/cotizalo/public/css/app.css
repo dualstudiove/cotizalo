@@ -513,7 +513,7 @@
     scroll-margin-top: calc(var(--alto-top, 61px) + 12px);
   }
 
-  /* Anuncio de promociones al inicio. Grande: caja de superficie (blanca en claro) con sombra, «Ver promociones»
+  /* Anuncio de promociones al inicio. Grande: caja de superficie (blanca en claro) con sombra suave, «Ver promociones»
      en tinta (negro con letras blancas en claro) y una flecha para plegarlo. Compacto: una línea que se toca
      para desplegarlo otra vez. */
   .promo-anuncio {
@@ -528,7 +528,7 @@
     border-radius: 14px;
     background: var(--surface);
     color: var(--ink);
-    box-shadow: var(--shadow-pop);
+    box-shadow: var(--sombra-suave);
     font: inherit;
     text-align: left;
   }
