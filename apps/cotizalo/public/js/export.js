@@ -1,7 +1,7 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
-// Un único motor de maquetación (layoutDoc) alimenta el PDF y la imagen, así se ven iguales.
+// El PDF sale del motor de maquetación (layoutDoc); la imagen es vertical y más sencilla, para estados y chats.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
-import { CLARO } from "../_ds/diseno/js/tokens.js";
+import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
 
 const COLOR_POR_DEFECTO = "#109d9b"; // Cian, el de src/paleta.js
 
@@ -18,6 +18,8 @@ export function buildDoc({ res, negocio, paciente = {} }) {
     logo: negocio.logo || null,
     color: negocio.color || COLOR_POR_DEFECTO,
     colorAcento: negocio.tema?.acento || negocio.color || COLOR_POR_DEFECTO,
+    colorClaro: negocio.tema?.claro || null, // fondo de la imagen vertical
+    colorTinta: negocio.tema?.tinta || null, // texto sobre el color del negocio
     codigo: res.codigo,
     emision: res.dia,
     vigencia: res.vigencia_hasta,
@@ -828,58 +830,212 @@ export async function toPdfBlob(d) {
   return new Blob(out, { type: "application/pdf" });
 }
 
-// ─────────────────────────── Imagen PNG ───────────────────────────
-export async function toPngBlob(d) {
-  await prepararLogo(d);
-  const S = 2.4;
-  const W = 595;
-  const fam = '"Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif';
-  const font = (b, z) => `${b ? 700 : 400} ${z * S}px ${fam}`;
-  const mctx = document.createElement("canvas").getContext("2d");
-  const measure = (s, b, z) => {
-    mctx.font = font(b, z);
-    return mctx.measureText(s).width / S;
+// ─────────────────────────── Imagen vertical (estados de Instagram y WhatsApp) ───────────────────────────
+// Formato propio, más sencillo que el PDF: 1080 px de ancho y al menos 1920 de alto (9:16). Lleva lo que el
+// paciente necesita ver de un vistazo: el negocio y su RIF, el código, los exámenes con su precio y el total.
+// Si la lista no cabe en 1920 px, la imagen crece hacia abajo en vez de achicar la letra.
+const STORY_W = 1080;
+const STORY_H = 1920;
+const F_TEXTO = '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+const F_TITULO = '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+
+/** Espera las fuentes de la página (si no cargan, el lienzo usa las del sistema). */
+async function fuentesListas() {
+  try {
+    await Promise.all([
+      document.fonts.load(`700 40px ${F_TITULO}`),
+      document.fonts.load(`600 40px ${F_TEXTO}`),
+      document.fonts.load(`400 40px ${F_TEXTO}`),
+    ]);
+  } catch { /* sin fuentes web: se dibuja con las del sistema */ }
+}
+
+/** Dibuja la imagen en `g` y devuelve el alto que ocupó el contenido. */
+function dibujarStory(d, g, H, dy = 0) {
+  const M = 72; // margen lateral
+  const W = STORY_W;
+  const color = d.color || COLOR_POR_DEFECTO;
+  const C = {
+    fondo: d.colorClaro || tinteDe(color),
+    ink: CLARO.ink,
+    muted: CLARO["ink-2"],
+    linea: CLARO["line-2"],
+    tarjeta: CLARO.surface,
+    color,
+    tinta: d.colorTinta || CLARO["accent-ink"],
+    acento: d.colorAcento || color,
+    promo: CLARO.info,
   };
-  const { pages, alto } = layoutDoc(d, { width: W, margin: 36, pageH: 0, measure });
-  const c = document.createElement("canvas");
-  c.width = Math.round(W * S);
-  c.height = Math.round(alto * S);
-  const g = c.getContext("2d");
-  g.fillStyle = CLARO.surface;
-  g.fillRect(0, 0, c.width, c.height);
-  g.textBaseline = "alphabetic";
-  for (const m of pages[0]) {
-    if (m.t === "rect") {
-      g.fillStyle = m.color;
-      g.beginPath();
-      g.roundRect(m.x * S, m.y * S, m.w * S, m.h * S, (m.r || 0) * S);
-      g.fill();
-    } else if (m.t === "circle") {
-      g.beginPath();
-      g.arc(m.cx * S, m.cy * S, m.r * S, 0, Math.PI * 2);
-      if (m.fill) {
-        g.fillStyle = m.color;
-        g.fill();
-      } else {
-        g.strokeStyle = m.color;
-        g.lineWidth = m.w * S;
-        g.stroke();
+  const font = (peso, px, fam = F_TEXTO) => `${peso} ${px}px ${fam}`;
+  const medir = (s, f) => {
+    g.font = f;
+    return g.measureText(s).width;
+  };
+  const texto = (s, x, y, f, col, align = "left") => {
+    g.font = f;
+    g.fillStyle = col;
+    g.textAlign = align;
+    g.fillText(s, x, y);
+  };
+  const caja = (x, y, w, h, r, col) => {
+    g.fillStyle = col;
+    g.beginPath();
+    g.roundRect(x, y, w, h, r);
+    g.fill();
+  };
+  const partir = (s, f, max) => {
+    const out = [];
+    let linea = "";
+    for (const w of String(s).split(/\s+/).filter(Boolean)) {
+      const cand = linea ? `${linea} ${w}` : w;
+      if (!linea || medir(cand, f) <= max) linea = cand;
+      else {
+        out.push(linea);
+        linea = w;
       }
-    } else if (m.t === "line") {
-      g.strokeStyle = m.color;
-      g.lineWidth = m.w * S;
-      g.beginPath();
-      g.moveTo(m.x1 * S, m.y1 * S);
-      g.lineTo(m.x2 * S, m.y2 * S);
-      g.stroke();
-    } else if (m.t === "img") g.drawImage(d._logo.img, m.x * S, m.y * S, m.w * S, m.h * S);
-    else {
-      g.font = font(m.bold, m.size);
-      g.fillStyle = m.color;
-      g.textAlign = m.align === "r" ? "right" : "left";
-      g.fillText(m.s, m.x * S, m.y * S);
+    }
+    if (linea) out.push(linea);
+    return out;
+  };
+
+  g.textBaseline = "alphabetic";
+  g.fillStyle = C.fondo;
+  g.fillRect(0, 0, W, H);
+  g.translate(0, dy); // contenido centrado en vertical cuando sobra alto
+
+  // Encabezado: logo, nombre del negocio y RIF
+  let y = 96;
+  const logo = d._logo;
+  if (logo) {
+    const lh = 120;
+    const lw = Math.min(260, (logo.w / logo.h) * lh);
+    caja(M, y, lw + 24, lh + 24, 28, C.tarjeta);
+    g.drawImage(logo.img, M + 12, y + 12, lw, lh);
+    y += lh + 24 + 40;
+  }
+  const fNombre = font(700, 60, F_TITULO);
+  for (const l of partir(d.nombre, fNombre, W - M * 2)) {
+    y += 60;
+    texto(l, M, y, fNombre, C.ink);
+    y += 10;
+  }
+  const datos = [d.rif && `RIF ${d.rif}`, d.telefono && `Tel. ${d.telefono}`].filter(Boolean);
+  if (datos.length) {
+    y += 46;
+    texto(datos.join("   ·   "), M, y, font(500, 32), C.muted);
+  }
+
+  // Código del presupuesto y vigencia
+  y += 72;
+  texto("PRESUPUESTO", M, y, font(700, 26), C.muted);
+  y += 70;
+  texto(d.codigo, M, y, font(700, 72, F_TITULO), C.acento);
+  y += 52;
+  texto(
+    `Emitido el ${fmtFecha(d.emision)}  ·  Válido hasta el ${fmtFecha(d.vigencia)}`,
+    M,
+    y,
+    font(400, 30),
+    C.muted,
+  );
+  if (d.paciente.nombre) {
+    y += 46;
+    const pac = [d.paciente.nombre, d.paciente.cedula && `C.I. ${d.paciente.cedula}`]
+      .filter(Boolean).join("  ·  ");
+    texto(`Paciente: ${pac}`, M, y, font(600, 30), C.ink);
+  }
+
+  // Tarjeta blanca con los exámenes: nombre a la izquierda y precio a la derecha
+  y += 52;
+  const pad = 44;
+  const xi = M + pad;
+  const xd = W - M - pad;
+  const fItem = font(600, 36);
+  const fPrecio = font(700, 36);
+  const filas = d.items.map((it) => {
+    const precio = ref(it.precio_cent);
+    const ancho = xd - xi - medir(precio, fPrecio) - 32;
+    const lineas = partir(it.nombre, fItem, ancho);
+    const promo = it.promo ? textoPromo(it.promo) : null;
+    return { precio, lineas, promo, alto: lineas.length * 46 + (promo ? 44 : 0) };
+  });
+  const sep = 40;
+  const altoTarjeta = pad * 2 + filas.reduce((s, f) => s + f.alto, 0) +
+    Math.max(0, filas.length - 1) * sep;
+  caja(M, y, W - M * 2, altoTarjeta, 36, C.tarjeta);
+  let yi = y + pad;
+  filas.forEach((f, i) => {
+    if (i) {
+      g.fillStyle = C.linea;
+      g.fillRect(xi, yi + sep / 2 - 1, xd - xi, 2);
+      yi += sep;
+    }
+    texto(f.precio, xd, yi + 36, fPrecio, C.ink, "right");
+    for (const l of f.lineas) {
+      texto(l, xi, yi + 36, fItem, C.ink);
+      yi += 46;
+    }
+    if (f.promo) {
+      texto(f.promo, xi, yi + 32, font(600, 26), C.promo);
+      yi += 44;
+    }
+  });
+  y += altoTarjeta + 32;
+
+  // Total en el color del negocio
+  const altoTotal = d.tasa ? 290 : 222;
+  caja(M, y, W - M * 2, altoTotal, 36, C.color);
+  let yt = y + 72;
+  texto("TOTAL", xi, yt, font(700, 28), C.tinta);
+  yt += 92;
+  texto(ref(d.totalRef), xi, yt, font(700, 88, F_TITULO), C.tinta);
+  if (d.tasa) {
+    yt += 66;
+    texto(bs(d.totalBs), xi, yt, font(600, 46, F_TITULO), C.tinta);
+  }
+  y += altoTotal;
+
+  // Pie: tasa usada y aviso sobre el bolívar
+  y += 56;
+  texto(tasaTexto(d), M, y, font(400, 28), C.muted);
+  y += 42;
+  for (
+    const l of partir(
+      "El monto en bolívares puede variar según la tasa del día del pago.",
+      font(400, 28),
+      W - M * 2,
+    )
+  ) {
+    texto(l, M, y, font(400, 28), C.muted);
+    y += 40;
+  }
+  if (hayPromos(d)) {
+    for (
+      const l of partir(
+        "Los precios en promoción se respetan solo hasta la fecha indicada.",
+        font(400, 28),
+        W - M * 2,
+      )
+    ) {
+      texto(l, M, y, font(400, 28), C.muted);
+      y += 40;
     }
   }
+  return y + 56;
+}
+
+export async function toPngBlob(d) {
+  await Promise.all([prepararLogo(d), fuentesListas()]);
+  // Primera pasada para saber cuánto alto hace falta; la segunda dibuja de verdad
+  const prueba = document.createElement("canvas");
+  prueba.width = STORY_W;
+  prueba.height = 10;
+  const contenido = Math.ceil(dibujarStory(d, prueba.getContext("2d"), 10));
+  const alto = Math.max(STORY_H, contenido);
+  const c = document.createElement("canvas");
+  c.width = STORY_W;
+  c.height = alto;
+  dibujarStory(d, c.getContext("2d"), alto, Math.round((alto - contenido) / 2));
   return new Promise((resolve, reject) =>
     c.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("No se pudo crear la imagen."))),

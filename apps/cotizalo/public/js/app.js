@@ -156,6 +156,7 @@ async function init() {
   document.title = `${S.cfg.negocio.nombre} · Presupuesto de exámenes`;
   cargarEstado();
   montar();
+  medirCabecera();
   history.replaceState({ v: "catalogo" }, "");
   window.addEventListener("popstate", (e) => {
     S.vista = e.state?.v || "catalogo";
@@ -187,9 +188,13 @@ function montar() {
     <section id="v-catalogo" class="stack">
       <div class="ratebar" id="ratebar"></div>
       <div id="aviso"></div>
-      <div class="search">${
+      <div class="buscador" id="buscador">
+        <div class="search">${
     icon("search")
-  }<input id="q" type="search" placeholder="Buscar examen o perfil…" autocomplete="off" aria-label="Buscar examen o perfil"></div>
+  }<input id="q" type="search" enterkeyhint="done" placeholder="Buscar examen o perfil…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Buscar examen o perfil" aria-describedby="qhint">
+          <button type="button" class="limpiar" data-act="limpiar" aria-label="Borrar la búsqueda" hidden><span aria-hidden="true">×</span></button></div>
+        <p class="qhint" id="qhint" aria-live="polite"></p>
+      </div>
       <div class="chips" id="chips" aria-label="Categorías"></div>
       <div class="tabs" id="tabs"></div>
       <div id="lista"></div>
@@ -703,9 +708,10 @@ async function exportar(tipo, btn) {
         });}
     } else if (tipo === "compartir") {
       try {
+        // La imagen vertical: es lo que se puede mandar a un estado de WhatsApp o a Instagram
         await compartir({
-          blob: await toPdfBlob(doc),
-          nombre: `${nombre}.pdf`,
+          blob: await toPngBlob(doc),
+          nombre: `${nombre}.png`,
           titulo: `Presupuesto ${S.res.codigo}`,
           texto: toText(doc),
         });
@@ -903,12 +909,114 @@ async function vaciar() {
   toast("Presupuesto vacío");
 }
 
+// ───────────── Buscador en el celular ─────────────
+// En el teléfono, agregar varios exámenes era: escribir, cerrar el teclado, tocar «Agregar», volver al buscador,
+// borrar y escribir otra vez. Ahora, si el buscador tenía el foco, al agregar se queda abierto con el texto
+// seleccionado: lo siguiente que se escriba reemplaza la búsqueda anterior, sin borrar a mano.
+const ACCIONES_LISTA = new Set(["ex", "pf", "mas", "menos"]);
+let buscandoAlTocar = false;
+
+function pintarBuscador(mensaje = "") {
+  const lim = $("#buscador .limpiar");
+  if (lim) lim.hidden = !S.q;
+  const h = $("#qhint");
+  if (h) h.innerHTML = mensaje;
+}
+
+/** Tras agregar o quitar algo desde la lista con el buscador abierto: foco de vuelta y texto seleccionado. */
+const elegido = (act, id) => (act === "pf" ? S.pf.includes(id) : S.ex.includes(id));
+function seguirBuscando(act, id, antes) {
+  const inp = $("#q");
+  // Si se abrió una ventana (p. ej. «Este perfil repite exámenes»), el foco es suyo
+  if (!inp || S.vista !== "catalogo" || !S.q || document.querySelector(".overlay")) return;
+  inp.focus({ preventScroll: true });
+  inp.setSelectionRange(0, inp.value.length);
+  const x = act === "pf" ? pfMap.get(id) : exMap.get(id);
+  const ahora = elegido(act, id);
+  if (!x || ahora === antes) return;
+  pintarBuscador(
+    ahora
+      ? `${icon("check")}<span><b>${esc(x.nombre)}</b> agregado · ${nItems()} en tu presupuesto. Escribe el siguiente.</span>`
+      : `<span>Quitaste <b>${esc(x.nombre)}</b>.</span>`,
+  );
+}
+
+/** Si el buscador quedó pegado arriba, al escribir se vuelve al inicio de los resultados. */
+function subirAResultados() {
+  const aviso = $("#aviso");
+  const top = $("header.top");
+  if (!aviso || !top) return;
+  const destino = aviso.getBoundingClientRect().bottom + window.scrollY - top.offsetHeight;
+  if (window.scrollY > destino + 1) window.scrollTo({ top: Math.max(0, destino) });
+}
+
+/** Alto de la cabecera, para que el buscador se pegue justo debajo. */
+function medirCabecera() {
+  const top = $("header.top");
+  if (top) document.documentElement.style.setProperty("--alto-top", `${top.offsetHeight}px`);
+}
+window.addEventListener("resize", medirCabecera);
+
+// Ratón: evita que el buscador pierda el foco al tocar un botón de la lista (en el teléfono, el teclado no
+// llega a cerrarse). En pantallas táctiles se recuerda si estaba abierto para devolverle el foco en el clic.
+document.addEventListener("pointerdown", (e) => {
+  buscandoAlTocar = document.activeElement?.id === "q";
+  const b = e.target.closest("[data-act]");
+  if (buscandoAlTocar && b && (ACCIONES_LISTA.has(b.dataset.act) || b.dataset.act === "limpiar")) {
+    e.preventDefault();
+  }
+});
+document.addEventListener("mousedown", (e) => {
+  const b = e.target.closest("[data-act]");
+  if (
+    document.activeElement?.id === "q" && b &&
+    (ACCIONES_LISTA.has(b.dataset.act) || b.dataset.act === "limpiar")
+  ) {
+    e.preventDefault();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.id !== "q" || e.key !== "Enter") return;
+  e.preventDefault();
+  // Con un solo resultado, Enter lo agrega; si no, cierra el teclado para ver la lista.
+  const { ex, pf } = filtrar();
+  const lista = S.tab === "examenes" ? ex : pf;
+  if (S.q.trim() && lista.length === 1) {
+    const x = lista[0];
+    const act = S.tab === "examenes" ? "ex" : "pf";
+    const ya = act === "pf" ? S.pf.includes(x.id) : S.ex.includes(x.id) || cubiertoPor(x.id);
+    if (!ya) {
+      if (act === "pf") alternarPerfil(x.id);
+      else alternarExamen(x.id);
+      seguirBuscando(act, x.id, false);
+      return;
+    }
+  }
+  e.target.blur();
+});
+
 // ───────────── Eventos ─────────────
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-act]");
   if (!b) return;
   const { act, id } = b.dataset;
+  const conBuscador = buscandoAlTocar || document.activeElement?.id === "q";
+  buscandoAlTocar = false;
+  if (conBuscador && ACCIONES_LISTA.has(act)) {
+    const antes = elegido(act === "pf" ? "pf" : "ex", id);
+    queueMicrotask(() => seguirBuscando(act === "pf" ? "pf" : "ex", id, antes));
+  }
   switch (act) {
+    case "limpiar": {
+      const inp = $("#q");
+      inp.value = "";
+      S.q = "";
+      renderLista();
+      pintarBuscador();
+      inp.focus();
+      break;
+    }
     case "cat":
       S.catId = id;
       renderChips();
@@ -981,6 +1089,8 @@ document.addEventListener("input", (e) => {
   if (t.id === "q") {
     S.q = t.value;
     renderLista();
+    pintarBuscador();
+    subirAResultados();
     return;
   }
   if (t.dataset?.pac) {

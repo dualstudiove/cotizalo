@@ -141,6 +141,70 @@
     padding-top: 16px;
     padding-bottom: 110px;
   }
+
+  /* Buscador del paciente: se queda pegado bajo la cabecera para agregar varios exámenes seguidos */
+  .buscador {
+    position: sticky;
+    top: var(--alto-top, 61px);
+    z-index: 15;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 8px 16px;
+    background: var(--bg);
+  }
+  .buscador .search input {
+    padding-right: 48px;
+  }
+  /* El buscador del navegador trae su propia «x» (solo en algunos): se usa la nuestra, más grande */
+  .buscador .search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .buscador .limpiar {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .buscador .limpiar[hidden] {
+    display: none;
+  }
+  .buscador .limpiar:hover {
+    color: var(--ink);
+    background: var(--surface-2);
+  }
+  .qhint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-2);
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .qhint:empty {
+    display: none;
+  }
+  .qhint:not(:empty) {
+    margin-top: 8px;
+  }
+  .qhint svg {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    color: var(--ok);
+  }
   .stack > * + * {
     margin-top: 12px;
   }
