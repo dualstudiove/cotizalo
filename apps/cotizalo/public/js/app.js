@@ -303,9 +303,11 @@ function decidirTamanoPromo(promos) {
 }
 
 /**
- * Anuncio del inicio: todo el anuncio es un botón que muestra las promociones (con «›» a la derecha).
- *  · grande: 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha)
- *  · compacto: una línea («Mes Rosa · −20% en…» o «2 promociones: Mes Rosa y …»), cortada con «…»
+ * Anuncio del inicio.
+ *  · grande: 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha); abajo «Ver promociones»
+ *    (filtra la lista y lo compacta) y arriba a la derecha una flecha para plegarlo sin filtrar
+ *  · compacto: una línea («Mes Rosa · −20% en…» o «2 promociones: Mes Rosa y …»); al tocarla se despliega
+ *    otra vez, por si se plegó sin querer y se quiere leer de qué se tratan
  */
 function anuncioPromos(promos) {
   const frase = (p) => `<strong>${esc(p.frase.pct)}</strong> ${esc(p.frase.texto)}`;
@@ -313,21 +315,22 @@ function anuncioPromos(promos) {
     const linea = promos.length === 1
       ? `<b>${esc(promos[0].nombre)}</b> · ${frase(promos[0])}`
       : `<b>${promos.length} promociones:</b> ${esc(enLista(promos.map((p) => p.nombre)))}`;
-    return `<button type="button" class="promo-anuncio compacta" data-act="verpromo">
+    return `<button type="button" class="promo-anuncio compacta" data-act="abrirpromo" aria-expanded="false">
       <span class="emoji" aria-hidden="true">🎉</span><span class="linea">${linea}</span>
-      <span class="flecha" aria-hidden="true">›</span></button>`;
+      <span class="flecha abajo" aria-hidden="true">›</span><span class="sr">Ver detalles</span></button>`;
   }
-  return `<button type="button" class="promo-anuncio" data-act="verpromo">
+  return `<div class="promo-anuncio" role="region" aria-label="Promociones">
     <span class="emoji" aria-hidden="true">🎉</span>
-    <span class="txt">${
+    <div class="txt">${
     promos.map((p) =>
-      `<span class="una"><b>${esc(p.nombre)}</b><span>${frase(p)}</span><small>Hasta el ${
+      `<div class="una"><b>${esc(p.nombre)}</b><span>${frase(p)}</span><small>Hasta el ${
         fechaCorta(p.hasta)
-      }</small></span>`
+      }</small></div>`
     ).join("")
-  }</span>
-    <span class="flecha" aria-hidden="true">›</span>
-  </button>`;
+  }
+      <button type="button" class="btn ver" data-act="verpromo">Ver promociones</button></div>
+    <button type="button" class="plegar" data-act="plegarpromo" aria-expanded="true" aria-label="Plegar el anuncio"><span class="flecha arriba" aria-hidden="true">›</span></button>
+  </div>`;
 }
 
 function renderAviso() {
@@ -1308,6 +1311,12 @@ document.addEventListener("click", (e) => {
       inp.focus();
       break;
     }
+    case "abrirpromo":
+    case "plegarpromo":
+      promoGrande = act === "abrirpromo";
+      renderAviso();
+      $(promoGrande ? ".promo-anuncio .plegar" : ".promo-anuncio.compacta")?.focus({ preventScroll: true });
+      break;
     case "verpromo": {
       // Ya lo vio: el anuncio pasa a ocupar una sola línea
       if (promoGrande) {
