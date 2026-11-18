@@ -2996,68 +2996,128 @@
     return c ? g / c : null;
   }
   /**
-   * ¿Funcionaron los ads? El resultado principal son los clics a WhatsApp; el éxito se juzga por cuánto costó cada
-   * uno comparado con el periodo anterior (o, si no hay, con el promedio de los meses anteriores).
+   * Cifras de los ads del periodo (sin veredicto: el éxito se mide contra las metas, ver adsAporte) y el impulso
+   * con mejor costo por clic, para marcarlo.
    */
   function adsVerdict(r, list, t, tp) {
-    var per = resQ() ? "trimestre" : "mes", cpc = costPer(t.gastado, t.clics);
-    var ref = costPer(tp.gastado, tp.clics), refTxt = "el " + per + " anterior";
-    if (ref == null) {
-      ref = cpcHistorico(r);
-      refTxt = "el promedio de los meses anteriores";
-    }
-    var k, titulo, texto;
     var conClics = list.filter(function (i) {
       return (i.resultados || {}).clics;
-    });
-    var best = conClics.slice().sort(function (a, b) {
+    }).sort(function (a, b) {
       return costPer(a.gastado, a.resultados.clics) - costPer(b.gastado, b.resultados.clics);
     });
-    function nombre(i) {
-      var p = S.posts.get(i.publicacion_id);
-      return "«" + ((p && p.title) || "Sin título") + "»";
-    }
-    if (t.clics == null) {
-      k = "pend";
-      titulo = "Aún no hay resultados anotados";
-      texto = S.canWrite
-        ? "Anota en cada impulso los clics a WhatsApp que da Meta para saber si funcionaron."
-        : "Los resultados de los impulsos de este " + per + " todavía no están cargados.";
-    } else if (ref == null) {
-      k = "run";
-      titulo = "Primer " + per + " con resultados";
-      texto = fmtNum(t.clics) + " personas tocaron el botón de WhatsApp, a " + fmtUsd(cpc) +
-        " cada una. Desde el próximo " + per + " se compara para saber si mejora.";
-    } else {
-      var d = (cpc - ref) / ref;
-      var pct = Math.abs(Math.round(d * 100));
-      k = d <= -0.1 ? "ok" : d >= 0.1 ? "bad" : "run";
-      titulo = k === "ok" ? "Los ads funcionaron mejor que " + refTxt
-        : k === "bad" ? "Los ads rindieron menos que " + refTxt
-        : "Resultados parecidos a " + refTxt;
-      texto = fmtNum(t.clics) + " personas tocaron el botón de WhatsApp, a " + fmtUsd(cpc) + " cada una" +
-        (k === "run" ? " (casi lo mismo que " + refTxt + ", " + fmtUsd(ref) + ")."
-          : ": " + pct + " % más " + (d < 0 ? "barato" : "caro") + " que " + refTxt + " (" + fmtUsd(ref) + ").");
-    }
-    if (best.length > 1) {
-      texto += " El mejor fue " + nombre(best[0]) + " (" + fmtUsd(costPer(best[0].gastado, best[0].resultados.clics)) + " por clic)";
-      var worst = best[best.length - 1], wc = costPer(worst.gastado, worst.resultados.clics);
-      texto += k === "bad" || wc > 2 * costPer(best[0].gastado, best[0].resultados.clics)
-        ? "; el que menos rindió, " + nombre(worst) + " (" + fmtUsd(wc) + ")."
-        : ".";
-    }
-    var st = { k: k, t: { ok: "Funcionó", bad: "Por mejorar", run: k === "run" && ref == null ? "Sin comparación aún" : "Estable", pend: "Sin datos" }[k] };
+    var cpc = costPer(t.gastado, t.clics);
     return {
-      best: best.length > 1 ? best[0].id : null,
-      html: '<div class="verdict v-' + k + '"><div class="v-h">' + mpill(st) + "<h3>" + esc(titulo) + "</h3></div><p>" + esc(texto) + "</p>" +
-        '<div class="v-nums"><div><b>' + (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp</span>" +
+      best: conClics.length > 1 ? conClics[0].id : null,
+      html: '<div class="v-nums"><div><b>' + (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp</span>" +
         deltaHtml(t.clics, tp.clics, r.etiqueta) + "</div>" +
         "<div><b>" + usdBig(cpc) + "</b><span>por clic a WhatsApp</span>" + deltaHtml(cpc, costPer(tp.gastado, tp.clics), r.etiqueta, true) + "</div>" +
         "<div><b>" + (t.mensajes != null ? fmtNum(t.mensajes) : "–") + "</b><span>mensajes" +
         (t.mensajes ? " · " + esc(fmtUsd(t.gastado / t.mensajes)) + " c/u" : "") + "</span></div>" +
         "<div><b>" + (t.alcance != null ? fmtNum(t.alcance) : "–") + "</b><span>personas alcanzadas" +
-        (t.seguidores ? " · " + sgnNum(t.seguidores) + " seguidores" : "") + "</span></div></div></div>",
+        (t.seguidores ? " · " + sgnNum(t.seguidores) + " seguidores" : "") + "</span></div></div>",
     };
+  }
+
+  /* Aporte de los ads a las metas: el éxito de los ads se mide contra las metas que ya existen en Objetivos.
+     Cada meta a la que los impulsos pueden sumar (seguidores, alcance, clics a WhatsApp, mensajes) muestra su
+     avance y qué parte de lo logrado en el periodo vino de los ads. */
+  function adsKeyOf(m) {
+    var src = srcOf(m, "ig");
+    if (src === "seguidores" || src === "alcance") return src;
+    var n = String(m.name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    if (/whatsapp|clic/.test(n)) return "clics";
+    if (/mensaje|dm\b|consulta/.test(n)) return "mensajes";
+    return null;
+  }
+  /** Lo logrado en el periodo según la cuenta: seguidores ganados o alcance sumado (de las cifras por mes). */
+  function logradoCuenta(key, months) {
+    var cm = RD().cuentaMes.ig || {};
+    if (key === "alcance") {
+      var s = 0, any = false;
+      months.forEach(function (k) {
+        if (cm[k] && cm[k].alcance != null) {
+          s += cm[k].alcance;
+          any = true;
+        }
+      });
+      return any ? s : null;
+    }
+    var end = null;
+    months.forEach(function (k) {
+      if (cm[k] && cm[k].seguidores != null) end = cm[k].seguidores;
+    });
+    var f = months[0], d = new Date(Number(f.slice(0, 4)), Number(f.slice(5, 7)) - 2, 1),
+      prev = cm[monthKey(d.getFullYear(), d.getMonth())];
+    var start = prev && prev.seguidores != null ? prev.seguidores : (cm[f] ? cm[f].seguidores_ini : null);
+    return end != null && start != null ? end - start : null;
+  }
+  function adsAporte(r, t) {
+    var q = resQ(), qn = Math.floor(S.cm / 3), y = S.cy, m0 = q ? qn * 3 : S.cm, i = m0 - qn * 3;
+    var qg = S.goals.get("q-" + y + "-" + (qn + 1)) || {}, months = monthsIn(r.desde, r.hasta), rows = [];
+    metricList(qg, "ig").forEach(function (mb) {
+      var key = adsKeyOf(mb);
+      if (!key) return;
+      var m = effM(mb, "ig", y, qn), ms = calcMilestones(m.cur, m.tar, m.pin), pr = null;
+      if (ms) pr = q ? quarterProgress(m, ms, y, qn) : monthProgress(m, i, ms, y, m0);
+      var ads = t[key];
+      // Clics y mensajes son «del mes»: en el trimestre se suman los valores reales de sus meses.
+      var logrado = null;
+      if (key === "seguidores" || key === "alcance") logrado = logradoCuenta(key, months);
+      else {
+        var idx = q ? [0, 1, 2] : [i];
+        idx.forEach(function (j) {
+          if (hasNum(m.real && m.real[j])) logrado = (logrado || 0) + Number(m.real[j]);
+        });
+      }
+      var share = ads != null && logrado ? Math.min(100, ads / logrado * 100) : null;
+      var nombre = { seguidores: "seguidores ganados", alcance: "del alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key];
+      var texto;
+      if (ads == null) {
+        texto = "Los impulsos no tienen " + ({ seguidores: "seguidores", alcance: "alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key]) +
+          " anotados" + (S.canWrite ? ": anótalos para ver su aporte." : ".");
+      } else if (logrado == null) {
+        texto = "Los ads sumaron " + fmtNum(ads) + " " + ({ seguidores: "seguidores", alcance: "de alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key]) + ".";
+      } else if (key === "alcance") {
+        texto = fmtNum(ads) + " de " + fmtNum(logrado) + " " + nombre + " vino de los ads (" + Math.round(share) + " %).";
+      } else {
+        texto = fmtNum(ads) + " de " + fmtNum(logrado) + " " + nombre + " vinieron de los ads (" + Math.round(share) + " %).";
+      }
+      var estado = pr
+        ? (pr.real != null ? "<b>" + fmtNum(pr.real, ms.d) + "</b> de " + fmtNum(pr.target, ms.d) : "– de " + fmtNum(pr.target, ms.d))
+        : (hasNum(m.tar) ? "meta " + fmtNum(Number(m.tar)) : "sin meta");
+      rows.push({
+        ok: ads != null && ads > 0,
+        k: pr ? pr.st.k : "pend",
+        html: '<div class="aporte">' + ring(pr ? pr.pct : null, pr ? pr.st.k : "pend") + '<div class="ap-b"><div class="gt-h"><b>' +
+          esc(m.name || "Sin nombre") + '</b><span class="ap-e">' + estado + "</span>" + (pr ? mpill(pr.st) : "") + "</div>" +
+          (share != null
+            ? '<div class="ap-bar" role="img" aria-label="' + Math.round(share) + ' % de ads"><i class="ap-ads" style="width:' + share.toFixed(1) +
+              '%"></i></div><div class="ap-k"><span><i class="hk hk-ads"></i>ads</span><span><i class="hk hk-org"></i>orgánico y otros</span></div>'
+            : "") +
+          '<p class="ap-t">' + esc(texto) + "</p></div></div>",
+      });
+    });
+    if (!rows.length) {
+      return '<div class="card"><h3>Aporte a las metas</h3><p class="gv-empty">' +
+        (S.canWrite
+          ? "Ninguna meta de este periodo recibe aporte de los ads. Para medir si funcionan, define en Objetivos una meta de seguidores, alcance, clics a WhatsApp o mensajes."
+          : "No hay metas de este periodo a las que los ads aporten.") + "</p></div>";
+    }
+    var con = rows.filter(function (x) {
+        return x.ok;
+      }),
+      ok = con.filter(function (x) {
+        return x.k === "ok";
+      }).length;
+    var per = q ? "este trimestre" : "este mes";
+    var resumen = !con.length
+      ? "Los ads de " + per + " todavía no muestran aporte a las metas."
+      : "Los ads aportaron a " + plural(con.length, "meta", "metas") + " de " + per +
+        (ok ? ", y " + (ok === 1 ? "una ya está cumplida" : ok + " ya están cumplidas") : "") + ".";
+    return '<div class="card"><div class="card-h"><h3>Aporte a las metas</h3><a class="btn sm ghost" href="#objetivos">Ver objetivos</a></div>' +
+      '<p class="ap-res">' + esc(resumen) + '</p><div class="aportes">' + rows.map(function (x) {
+        return x.html;
+      }).join("") + "</div></div>";
   }
   function adsSection(r) {
     var list = impulsosEn(r.desde, r.hasta), b = budgetIn(r.desde, r.hasta), t = adsTotals(list),
@@ -3068,15 +3128,16 @@
       return h + '<div class="card"><div class="empty" style="border:0;padding:16px 8px"><h3>' +
         (S.canWrite ? "Registra la inversión en ads de este " + (resQ() ? "trimestre" : "mes") : "Sin inversión en ads en este periodo") +
         "</h3><p>" + (S.canWrite
-          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula cuánto costó cada clic a WhatsApp y si los ads funcionaron."
+          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula cuánto costó cada clic a WhatsApp y cuánto aportaron los ads a las metas."
           : "Aquí verás qué consiguieron los posts impulsados y cuánto se invirtió.") + "</p>" +
         (S.canWrite && !resQ()
           ? '<div class="acts"><button class="btn primary" type="button" data-act="budedit">Definir el presupuesto del mes</button><button class="btn" type="button" data-act="impnew">Registrar impulso</button></div>'
           : "") + "</div></div></section>";
     }
-    // 1) ¿Funcionó? · 2) qué consiguió cada impulso · 3) el presupuesto · 4) la tendencia
+    // 1) aporte a las metas (ahí se ve si funcionaron) · 2) las cifras · 3) cada impulso · 4) presupuesto · 5) tendencia
     var v = list.length ? adsVerdict(r, list, t, tp) : null;
-    if (v) h += '<div class="card">' + v.html + "</div>";
+    if (list.length) h += adsAporte(r, t);
+    if (v) h += '<div class="card"><h3>Lo que consiguieron los ads</h3>' + v.html + "</div>";
     if (list.length) {
       var sk = S.impSort || "costo";
       list = list.slice().sort(function (a, c) {
