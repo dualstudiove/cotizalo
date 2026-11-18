@@ -183,8 +183,8 @@
       margin-left: -16px;
       margin-right: -16px;
       padding: 2px 16px;
-      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+      -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 40px), transparent);
+      mask-image: linear-gradient(to right, var(--ink) calc(100% - 40px), transparent);
     }
     .patient #chips::-webkit-scrollbar {
       display: none;
