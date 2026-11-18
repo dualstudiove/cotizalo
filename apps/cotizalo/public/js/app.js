@@ -250,7 +250,8 @@ const capital = (t) => (t ? t[0].toLocaleUpperCase("es") + t.slice(1) : t);
 const sinPerfil = (n) => capital(n.replace(/^perfil(\s+de)?\s+/i, "") || n);
 
 /**
- * Lo que abarca una promoción, en una frase que termina en punto. Orden: categorías, perfiles, exámenes.
+ * Lo que abarca una promoción, en una frase que termina en punto (devuelve { pct: "−20%", texto: "en …." }).
+ * Orden: categorías, perfiles, exámenes.
  *  · exámenes sueltos: «−20 % en 5 exámenes.» (uno: «en el examen: Glicemia.»)
  *  · categorías: «−20 % en todos los exámenes de Hormonas, Coagulación y Patología.»
  *  · perfiles: «−20 % en el perfil: Básico.» / «en los perfiles: Básico y Chequeo ejecutivo.»
@@ -266,7 +267,6 @@ function frasePromo(p) {
   const nombresCat = enLista(cats.map((c) => capital(c.nombre)));
   const nombresPf = enLista(pfs.map((x) => sinPerfil(x.nombre)));
   const solo = [cats.length, exs.length, pfs.length].filter(Boolean).length === 1;
-  const pct = `−${p.porcentaje} %`;
   let resto;
   if (solo && cats.length) resto = `todos los exámenes de ${nombresCat}`;
   else if (solo && pfs.length) {
@@ -283,7 +283,8 @@ function frasePromo(p) {
     }
     resto = enLista(partes);
   }
-  return resto ? `${pct} en ${resto}.` : "";
+  // El porcentaje va aparte (en negrita, todo pegado: «−20%»); el resto, en texto normal
+  return resto ? { pct: `−${p.porcentaje}%`, texto: `en ${resto}.` } : null;
 }
 
 /** Promociones de hoy con algo visible para el paciente, sin las que cerró en este teléfono. */
@@ -301,7 +302,9 @@ function anuncioPromos(promos) {
     <span class="emoji" aria-hidden="true">🎉</span>
     <div class="txt">${
     promos.map((p) =>
-      `<div class="una"><b>${esc(p.nombre)}</b><span>${esc(p.frase)}</span><small>Hasta el ${
+      `<div class="una"><b>${esc(p.nombre)}</b><span><strong>${esc(p.frase.pct)}</strong> ${
+        esc(p.frase.texto)
+      }</span><small>Hasta el ${
         fechaCorta(p.hasta)
       }</small></div>`
     ).join("")
