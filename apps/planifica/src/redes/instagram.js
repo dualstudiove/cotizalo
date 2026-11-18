@@ -151,21 +151,30 @@ export async function metricasDeMedio(p, token, medioId) {
   return out;
 }
 
-/** Cifras de la cuenta de un día: { alcance, reproducciones, cuentas, interacciones } (desde/hasta en segundos). */
+const CUENTA_BASICA = "reach,views,accounts_engaged,total_interactions";
+const CUENTA_COMPLETA = `${CUENTA_BASICA},profile_views,profile_links_taps`;
+
+/**
+ * Cifras de la cuenta de un día: { alcance, reproducciones, cuentas, interacciones, visitas, clics_bio }
+ * (desde/hasta en segundos). Si Meta no acepta visitas al perfil o toques en los enlaces del perfil, se piden
+ * solo las básicas.
+ */
 export async function cifrasDelDia(p, token, cuentaId, desde, hasta) {
-  const j = await pedir(p, `/${cuentaId}/insights`, {
-    metric: "reach,views,accounts_engaged,total_interactions",
-    period: "day",
-    metric_type: "total_value",
-    since: desde,
-    until: hasta,
-    access_token: token,
-  });
+  const q = (metric) => ({ metric, period: "day", metric_type: "total_value", since: desde, until: hasta, access_token: token });
+  let j;
+  try {
+    j = await pedir(p, `/${cuentaId}/insights`, q(CUENTA_COMPLETA));
+  } catch (e) {
+    if (!(e instanceof ErrorRed) || e.token || e.codigo !== 100) throw e;
+    j = await pedir(p, `/${cuentaId}/insights`, q(CUENTA_BASICA));
+  }
   const nombres = {
     reach: "alcance",
     views: "reproducciones",
     accounts_engaged: "cuentas",
     total_interactions: "interacciones",
+    profile_views: "visitas",
+    profile_links_taps: "clics_bio",
   };
   const out = {};
   for (const d of j.data || []) {

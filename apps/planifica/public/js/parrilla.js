@@ -3459,22 +3459,8 @@
     return n ? { v: t / n, n: n } : null;
   }
   function resumen(r, L, c) {
-    var t = adsTotals(impulsosEn(r.desde, r.hasta)), tp = adsTotals(impulsosEn(r.pDesde, r.pHasta)),
-      b = budgetIn(r.desde, r.hasta);
-    var inversion = kpi("Inversión en ads", usdBig(t.gastado), "",
-      b != null ? "de " + fmtUsd(b) + (t.gastado <= b ? " · quedan " + fmtUsd(b - t.gastado) : " · se pasó") : "Sin presupuesto definido");
-    var clics = kpi("Clics al enlace", t.clics != null ? fmtNum(t.clics) : "–", deltaHtml(t.clics, tp.clics, r.etiqueta),
-      t.clics ? fmtUsd(t.gastado / t.clics) + " por clic" : "de los posts impulsados");
-    if (!c) {
-      var planned = allPosts().filter(function (p) {
-        return p.date && p.date >= r.desde && p.date <= r.hasta;
-      });
-      return '<div class="kpis">' + inversion + clics +
-        kpi("Posts publicados", fmtNum(planned.filter(function (p) {
-          return p.status === "publicado";
-        }).length), "", "de " + plural(planned.length, "planificado", "planificados")) + "</div>";
-    }
-    var dias = (L && L.data && L.data.dias) || [];
+    var t = adsTotals(impulsosEn(r.desde, r.hasta));
+    var dias = (c && L && L.data && L.data.dias) || [];
     var fEnd = lastFollowers(dias, r.desde, r.hasta),
       fPrevEnd = lastFollowers(dias, r.pDesde, r.pHasta),
       fStart = fPrevEnd != null ? fPrevEnd : firstFollowers(dias, r.desde, r.hasta),
@@ -3482,20 +3468,25 @@
       fPrevStart = firstFollowers(dias, r.pDesde, r.pHasta),
       fPrevCut = lastFollowers(dias, r.pDesde, r.cpHasta),
       gainedPrev = fPrevCut != null && fPrevStart != null ? fPrevCut - fPrevStart : null;
-    var reach = sumBy(dias, "alcance", r.desde, r.hasta), reachP = sumBy(dias, "alcance", r.pDesde, r.cpHasta),
-      inter = sumBy(dias, "interacciones", r.desde, r.hasta), interP = sumBy(dias, "interacciones", r.pDesde, r.cpHasta);
-    var rate = reach ? inter / reach * 100 : null;
+    function suma(k) {
+      return { v: sumBy(dias, k, r.desde, r.hasta), p: sumBy(dias, k, r.pDesde, r.cpHasta) };
+    }
+    function cifra(k, label, hint) {
+      var s = suma(k), ok = s.v != null;
+      return kpi(label, ok ? fmtNum(s.v) : "–", ok ? deltaHtml(s.v, s.p, r.etiqueta) : "", hint);
+    }
+    var reach = suma("alcance"), inter = suma("interacciones");
+    var rate = reach.v ? inter.v / reach.v * 100 : null;
     var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.pHasta);
     var h = '<div class="kpis">' +
-      kpi("Seguidores ganados", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
-        fEnd != null ? fmtNum(fEnd) + " en total" : "") +
-      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta),
-        "Cuentas que vieron tu contenido" + (t.alcance ? " · " + fmtNum(t.alcance) + " con ads" : "")) +
-      kpi("Media de likes", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
+      kpi("👥 Seguidores", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
+        fEnd != null ? fmtNum(fEnd) + " en total" : "ganados en el periodo") +
+      cifra("alcance", "👀 Alcance", "Cuentas que vieron tu contenido" + (t.alcance ? " · " + fmtNum(t.alcance) + " con ads" : "")) +
+      kpi("❤️ Media de likes", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
         la ? "por post, de " + plural(la.n, "post publicado", "posts publicados") : (S.canWrite ? "Pega el link de los posts publicados." : "")) +
-      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta),
-        rate != null ? "Tasa: " + fmtNum(rate, 1) + " % del alcance" : "") +
-      clics + inversion + "</div>";
+      cifra("interacciones", "💬 Interacciones", rate != null ? "Tasa: " + fmtNum(rate, 1) + " % del alcance" : "") +
+      cifra("visitas", "👤 Visitas al perfil", t.visitas ? fmtNum(t.visitas) + " con ads" : "") +
+      cifra("clics_bio", "🔗 Clics en la bio", "Toques en los enlaces del perfil") + "</div>";
     if (L && L.loading) h += '<p class="muted">Cargando las cifras de la cuenta…</p>';
     if (L && L.error) h += '<p class="warn-note">' + esc(L.error) + "</p>";
     return h;
