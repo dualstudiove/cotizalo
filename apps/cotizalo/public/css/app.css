@@ -161,9 +161,78 @@
     .item.perfil {
       cursor: pointer;
     }
-    /* Buscando: la cabecera se esconde para dejar más espacio a los resultados */
-    body.buscando header.top {
+    /* Buscando: se esconde todo lo que está arriba del buscador (cabecera, tasa y aviso) */
+    body.buscando header.top,
+    body.buscando #ratebar,
+    body.buscando #aviso {
       display: none;
+    }
+    body.buscando .patient {
+      padding-top: 0;
+    }
+
+    /* Tarjeta compacta: nombre a la izquierda; precio y botón redondo en la misma fila a la derecha */
+    .patient .item {
+      align-items: center;
+      gap: 6px 12px;
+      padding: 10px 10px 10px 14px;
+    }
+    .patient .item .side {
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+    }
+    .patient .item .price.promo {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      line-height: 1.2;
+    }
+    .patient .item .side .btn.agregar {
+      width: 48px;
+      min-width: 48px;
+      height: 48px;
+      min-height: 48px;
+      padding: 0;
+      border-radius: 999px;
+      justify-content: center;
+    }
+    .patient .item .side .btn.agregar svg {
+      width: 22px;
+      height: 22px;
+    }
+    .patient .btn.agregar .txt {
+      display: none;
+    }
+    .patient .item .side .badge.incluido {
+      max-width: 42vw;
+    }
+    .patient .item details {
+      margin-right: 4px;
+    }
+    .patient .item summary {
+      min-height: 44px;
+    }
+
+    /* Nada más chico que 44 px para el dedo */
+    .patient .btn,
+    .patient .chip,
+    .modal .btn {
+      min-height: 44px;
+    }
+    .patient .btn-icon,
+    .patient .contador .btn {
+      width: 44px;
+      min-width: 44px;
+      min-height: 44px;
+    }
+    .patient .tabs button {
+      min-height: 44px;
+    }
+    .buscador .limpiar {
+      width: 44px;
+      height: 44px;
+      right: 2px;
     }
     body.buscando .buscador {
       top: 0;
@@ -327,17 +396,39 @@
     color: var(--ink-2);
     font-weight: 600;
   }
+  /* «Todas» sin búsqueda: título de cada categoría sobre sus exámenes */
+  #lista .grupo {
+    margin: 18px 2px 8px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  #lista .grupo:first-child {
+    margin-top: 4px;
+  }
+  /* Presupuesto generado: solo «Nuevo presupuesto», a la izquierda */
+  .ok-head {
+    justify-content: flex-start;
+    margin-bottom: 4px;
+  }
   .item .desc {
     margin: 5px 0 0;
     font-size: 13px;
     color: var(--ink-2);
   }
+  /* Precio y botón en la misma fila, a la derecha y centrados en la tarjeta */
+  .item {
+    align-items: center;
+  }
   .item .side {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-end;
   }
   .price {
     font-family: var(--font-display);
@@ -378,10 +469,7 @@
     text-overflow: ellipsis;
     min-width: 0;
   }
-  /* Precio en promoción: el de antes tachado, más chico */
-  .price.promo {
-    color: var(--danger);
-  }
+  /* Precio en promoción: el de antes tachado, más chico (el nuevo, en el color normal) */
   .price.promo s {
     font-family: var(--font-body);
     font-size: 12px;

@@ -157,10 +157,19 @@ async function init() {
   cargarEstado();
   montar();
   medirCabecera();
-  history.replaceState({ v: "catalogo" }, "");
+  // Si ya había un presupuesto generado (p. ej. al recargar la página), se muestra ese
+  if (S.res) S.vista = "ok";
+  history.replaceState({ v: S.vista }, "");
   window.addEventListener("popstate", (e) => {
+    // Con un presupuesto generado no se vuelve a la lista ni al resumen: solo «Nuevo presupuesto» sale de ahí
+    if (S.res) {
+      S.vista = "ok";
+      history.replaceState({ v: "ok" }, "");
+      renderVista();
+      return;
+    }
     S.vista = e.state?.v || "catalogo";
-    if (S.vista === "ok" && !S.res) S.vista = "resumen";
+    if (S.vista === "ok") S.vista = "resumen";
     renderVista();
   });
   renderTodo();
@@ -378,18 +387,41 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** Etiqueta «−25 % hasta el 20/11» de un examen o perfil en promoción. */
+/** Etiqueta «−25 % hasta el 20/11» de un examen o perfil en promoción (en el color de información). */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
-  return `<span class="badge warn promo-tag" title="${
+  return `<span class="badge info promo-tag" title="${
     esc(x.promo.nombre)
   }">−${x.promo.porcentaje} % hasta el ${fmtFecha(x.promo.hasta)}</span>`;
 }
 
+/**
+ * Botón de agregar de una tarjeta. En el celular es un círculo grande solo con el ícono (+ / ✓) y el texto
+ * queda para los lectores de pantalla; en pantallas grandes se ve «+ Agregar» / «✓ Agregado».
+ */
+function botonAgregar(act, x, sel) {
+  return `<button type="button" class="btn agregar ${
+    sel ? "btn-primary" : "btn-soft"
+  }" data-act="${act}" data-id="${esc(x.id)}" aria-pressed="${sel}" aria-label="${
+    sel ? "Quitar" : "Agregar"
+  } ${esc(x.nombre)}">${icon(sel ? "check" : "plus")}<span class="txt">${
+    sel ? "Agregado" : "Agregar"
+  }</span></button>`;
+}
+
+/** Línea de debajo del nombre: promoción e indicaciones (lo que sirve para decidir). */
+const metaTarjeta = (x) =>
+  x.promo || x.indicaciones
+    ? `<div class="meta">${etiquetaPromo(x)}${
+      x.indicaciones ? `<span>${icon("info")} ${esc(x.indicaciones)}</span>` : ""
+    }</div>`
+    : "";
+
+// Tarjeta sencilla: nombre, precio y botón; debajo, solo promoción e indicaciones. La categoría va como
+// título de grupo en «Todas» y la descripción queda para el PDF.
 function cardExamen(e) {
   const sel = S.ex.includes(e.id);
   const cub = !sel && cubiertoPor(e.id);
-  const cat = S.cat.categorias.find((c) => c.id === e.categoria_id);
   const max = maxPor(e);
   let accion;
   if (cub) {
@@ -397,26 +429,12 @@ function cardExamen(e) {
       esc(cub.nombre)
     }"><span>Incluido en ${esc(cub.nombre)}</span></span>`;
   } else if (sel && max > 1) accion = contador(e, "tarjeta");
-  else {accion = `<button type="button" class="btn btn-sm ${
-      sel ? "btn-primary" : "btn-soft"
-    }" data-act="ex" data-id="${esc(e.id)}" aria-pressed="${sel}">${
-      sel ? `${icon("check")} Agregado` : `${icon("plus")} Agregar`
-    }</button>`;}
+  else accion = botonAgregar("ex", e, sel);
   const tambien = aliasEncontrado(e);
   return `<article class="item ${sel ? "sel" : ""} ${cub ? "dis" : ""}">
     <div><h3>${esc(e.nombre)}</h3>${
     tambien ? `<p class="alias">También llamado <b>${esc(tambien)}</b></p>` : ""
-  }
-      <div class="meta">${
-    cat
-      ? `<span class="badge cat-${(S.cat.categorias.indexOf(cat) % 5) + 1}">${
-        esc(cat.nombre)
-      }</span>`
-      : ""
-  }${etiquetaPromo(e)}${
-    e.indicaciones ? `<span>${icon("info")} ${esc(e.indicaciones)}</span>` : ""
-  }</div>
-      ${e.descripcion ? `<p class="desc">${esc(e.descripcion)}</p>` : ""}</div>
+  }${metaTarjeta(e)}</div>
     <div class="side">${precioConPromo(e, max > 1 ? "<small> c/u</small>" : "")}${accion}</div>
   </article>`;
 }
@@ -439,24 +457,26 @@ function contador(e, donde) {
 function cardPerfil(p) {
   const sel = S.pf.includes(p.id);
   const info = pfMap.get(p.id);
+  const n = info.ids.size;
   return `<article class="item perfil ${sel ? "sel" : ""}">
-    <div><h3>${esc(p.nombre)}</h3>
-      <div class="meta"><span class="badge">Perfil · ${p.examenes.length} exámenes</span>${
-    etiquetaPromo(p)
-  }${p.indicaciones ? `<span>${icon("info")} ${esc(p.indicaciones)}</span>` : ""}</div>
-      ${p.descripcion ? `<p class="desc">${esc(p.descripcion)}</p>` : ""}</div>
-    <div class="side">${precioConPromo(p)}
-      <button type="button" class="btn btn-sm ${
-    sel ? "btn-primary" : "btn-soft"
-  }" data-act="pf" data-id="${esc(p.id)}" aria-pressed="${sel}">${
-    sel ? `${icon("check")} Agregado` : `${icon("plus")} Agregar`
-  }</button></div>
-    <details><summary>Ver los exámenes incluidos</summary><ul>${
+    <div><h3>${esc(p.nombre)}</h3>${metaTarjeta(p)}</div>
+    <div class="side">${precioConPromo(p)}${botonAgregar("pf", p, sel)}</div>
+    <details><summary>Ver ${n === 1 ? "1 examen incluido" : `${n} exámenes incluidos`}</summary><ul>${
     [...info.ids].map((id) => `<li>${esc(p.examenes.find((m) => m.id === id)?.nombre)}</li>`).join(
       "",
     )
   }</ul></details>
   </article>`;
+}
+
+/** «Todas» sin búsqueda: los exámenes van bajo el título de su categoría, en el orden de las categorías. */
+function porCategoria(ex) {
+  return S.cat.categorias.map((c) => {
+    const delGrupo = ex.filter((e) => e.categoria_id === c.id);
+    return delGrupo.length
+      ? `<h3 class="grupo">${esc(c.nombre)}</h3>${delGrupo.map(cardExamen).join("")}`
+      : "";
+  }).join("");
 }
 
 function renderLista() {
@@ -486,7 +506,10 @@ function renderLista() {
         : ""
     }</div>`;
   } else {
-    html = lista.map(S.tab === "examenes" ? cardExamen : cardPerfil).join("");
+    const agrupar = S.tab === "examenes" && !S.catId && !palabrasDe(S.q).length;
+    html = agrupar
+      ? porCategoria(lista)
+      : lista.map(S.tab === "examenes" ? cardExamen : cardPerfil).join("");
     // Si la categoría elegida tiene límite, se avisa antes de que el paciente choque con él
     const cat = S.tab === "examenes" && S.catId && S.cat.categorias.find((c) => c.id === S.catId);
     // Categorías con exámenes repetibles (p. ej. Patología): aviso del negocio o uno general, sin decir el máximo.
@@ -661,12 +684,9 @@ function renderOk() {
     return;
   }
   const nom = `presupuesto-${S.res.codigo}`;
-  // Arriba, como en «Revisa»: volver a cambiar los exámenes (a la izquierda) o empezar otro (a la derecha)
+  // Un presupuesto generado ya no se edita (tiene su código): arriba solo queda empezar uno nuevo
   el.innerHTML = `
-    <div class="res-head"><button type="button" class="btn btn-ghost back" data-act="editar">${
-    icon("back")
-  } Cambiar exámenes</button>
-      <button type="button" class="btn btn-soft btn-sm" data-act="nuevo">${
+    <div class="res-head ok-head"><button type="button" class="btn btn-soft" data-act="nuevo">${
     icon("plus")
   } Nuevo presupuesto</button></div>
     <ol class="pasos" aria-label="Pasos"><li class="hecho"><i>${icon("check")}</i>Elige</li><li class="hecho"><i>${
@@ -1220,11 +1240,6 @@ document.addEventListener("click", (e) => {
     case "compartir":
       exportar(act, b);
       break;
-    case "editar":
-      S.vista = "resumen";
-      history.pushState({ v: "resumen" }, "");
-      renderVista();
-      break;
     case "nuevo":
       S.ex = [];
       S.cant = {};
@@ -1236,7 +1251,8 @@ document.addEventListener("click", (e) => {
       guardarCarro();
       localStorage.removeItem(`${K}:res`);
       S.vista = "catalogo";
-      history.pushState({ v: "catalogo" }, "");
+      // Se reemplaza la entrada del historial: con «atrás» no se vuelve al presupuesto ya cerrado
+      history.replaceState({ v: "catalogo" }, "");
       renderLista();
       renderVista();
       break;
