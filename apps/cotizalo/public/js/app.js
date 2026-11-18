@@ -244,13 +244,18 @@ function renderRate() {
 /** «a», «a y b», «a, b y c» */
 const enLista = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs.at(-1)}`);
 
+/** Primera letra en mayúscula. */
+const capital = (t) => (t ? t[0].toLocaleUpperCase("es") + t.slice(1) : t);
+/** Nombre de un perfil sin la palabra «perfil» al inicio: «Perfil básico» → «Básico», «Perfil de tiroides» → «Tiroides». */
+const sinPerfil = (n) => capital(n.replace(/^perfil(\s+de)?\s+/i, "") || n);
+
 /**
- * Lo que abarca una promoción, en una frase:
- *  · exámenes sueltos: «−20 % en 5 exámenes» (uno: «en el examen: Glicemia»)
- *  · categorías: «−20 % en todos los exámenes de hormonas, coagulación y patología»
- *  · perfiles: «−20 % en el perfil: Perfil básico» / «en los perfiles: Perfil básico y Chequeo ejecutivo»
- *  · mixto: de lo más amplio a lo más puntual, en una sola frase:
- *    «−20 % en todos los exámenes de hormonas, 3 exámenes más y el perfil Perfil básico»
+ * Lo que abarca una promoción, en una frase que termina en punto. Orden: categorías, perfiles, exámenes.
+ *  · exámenes sueltos: «−20 % en 5 exámenes.» (uno: «en el examen: Glicemia.»)
+ *  · categorías: «−20 % en todos los exámenes de Hormonas, Coagulación y Patología.»
+ *  · perfiles: «−20 % en el perfil: Básico.» / «en los perfiles: Básico y Chequeo ejecutivo.»
+ *  · mixto: «−20 % en todos los exámenes de Hormonas, el perfil Básico y 2 exámenes más.»
+ *    (sin categorías y con un solo examen, se nombra: «en el perfil Lipídico y el examen Glicemia.»)
  * Solo cuenta lo que el paciente puede ver (exámenes, categorías y perfiles publicados).
  */
 function frasePromo(p) {
@@ -258,30 +263,27 @@ function frasePromo(p) {
   const enCat = new Set(cats.map((c) => c.id));
   const exs = p.examenes.map((id) => exMap.get(id)).filter((e) => e && !enCat.has(e.categoria_id));
   const pfs = p.perfiles.map((id) => pfMap.get(id)).filter(Boolean);
-  const nombresCat = enLista(cats.map((c) => c.nombre.toLowerCase()));
+  const nombresCat = enLista(cats.map((c) => capital(c.nombre)));
+  const nombresPf = enLista(pfs.map((x) => sinPerfil(x.nombre)));
   const solo = [cats.length, exs.length, pfs.length].filter(Boolean).length === 1;
   const pct = `−${p.porcentaje} %`;
-  if (solo && cats.length) return `${pct} en todos los exámenes de ${nombresCat}`;
-  if (solo && exs.length) {
-    return exs.length === 1 ? `${pct} en el examen: ${exs[0].nombre}` : `${pct} en ${exs.length} exámenes`;
+  let resto;
+  if (solo && cats.length) resto = `todos los exámenes de ${nombresCat}`;
+  else if (solo && pfs.length) {
+    resto = pfs.length === 1 ? `el perfil: ${nombresPf}` : `los perfiles: ${nombresPf}`;
+  } else if (solo && exs.length) {
+    resto = exs.length === 1 ? `el examen: ${capital(exs[0].nombre)}` : `${exs.length} exámenes`;
+  } else {
+    const partes = [];
+    if (cats.length) partes.push(`todos los exámenes de ${nombresCat}`);
+    if (pfs.length) partes.push(pfs.length === 1 ? `el perfil ${nombresPf}` : `los perfiles ${nombresPf}`);
+    if (exs.length === 1 && !cats.length) partes.push(`el examen ${capital(exs[0].nombre)}`);
+    else if (exs.length) {
+      partes.push(`${exs.length} ${exs.length === 1 ? "examen" : "exámenes"}${cats.length ? " más" : ""}`);
+    }
+    resto = enLista(partes);
   }
-  if (solo && pfs.length) {
-    return pfs.length === 1
-      ? `${pct} en el perfil: ${pfs[0].nombre}`
-      : `${pct} en los perfiles: ${enLista(pfs.map((x) => x.nombre))}`;
-  }
-  const partes = [];
-  if (cats.length) partes.push(`todos los exámenes de ${nombresCat}`);
-  if (exs.length) {
-    const mas = cats.length ? " más" : "";
-    partes.push(exs.length === 1 && !cats.length ? `el examen ${exs[0].nombre}` : `${exs.length} ${exs.length === 1 ? "examen" : "exámenes"}${mas}`);
-  }
-  if (pfs.length) {
-    partes.push(
-      pfs.length === 1 ? `el perfil ${pfs[0].nombre}` : `los perfiles ${enLista(pfs.map((x) => x.nombre))}`,
-    );
-  }
-  return partes.length ? `${pct} en ${enLista(partes)}` : "";
+  return resto ? `${pct} en ${resto}.` : "";
 }
 
 /** Promociones de hoy con algo visible para el paciente, sin las que cerró en este teléfono. */

@@ -574,6 +574,7 @@
     color: var(--ink-3);
   }
   .promo-anuncio .ver {
+    align-self: flex-end;
     margin-top: 12px;
     border: 0;
     background: var(--ink);
