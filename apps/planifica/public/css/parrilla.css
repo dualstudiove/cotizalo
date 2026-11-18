@@ -3400,5 +3400,51 @@
     font-size: 13.5px;
     color: var(--ink-2);
   }
+
+  /* Ads: lo que consiguieron, por meta */
+  .ftiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .ftile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .ftile .fk {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .ftile b {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    color: var(--ink);
+  }
+  .ftile.good b {
+    color: var(--ok);
+  }
+  .ftile.bad b {
+    color: var(--danger);
+  }
+  .ftile .fl {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .ftile .fs {
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
 }
 

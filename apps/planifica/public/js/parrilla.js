@@ -2929,30 +2929,6 @@
   function impDates(i) {
     return fmtShort(i.inicio) + (i.fin ? " – " + fmtShort(i.fin) : " · en curso");
   }
-  /** Tarjeta de un impulso: primero lo que consiguió (clics a WhatsApp y su costo), después lo gastado. */
-  function impCard(i, best) {
-    var p = S.posts.get(i.publicacion_id) || { id: i.publicacion_id, title: "", format: "reel" },
-      x = igMet(p), r = i.resultados || {}, cpc = costPer(i.gastado, r.clics);
-    var chips = ["mensajes", "alcance", "visitas", "seguidores"].filter(function (k) {
-      return r[k] != null;
-    }).map(function (k) {
-      return '<span class="rchip"><b>' + fmtNum(r[k]) + "</b> " + RES_CHIP[k] + "</span>";
-    }).join("");
-    return '<div class="imp' + (best ? " best" : "") + '">' + thumbHtml(p, x, "tthumb") + '<div class="imp-b"><a href="#post-' + esc(p.id) + '">' +
-      (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a>" +
-      (best ? '<span class="best-tag">Mejor costo por clic</span>' : "") +
-      '<div class="meta"><span class="mt">' + esc(impDates(i)) + "</span>" +
-      (i.objetivo ? '<span class="mt">· Objetivo: ' + esc(OBJ_LABEL[i.objetivo] || i.objetivo) + "</span>" : "") +
-      '<span class="mt">· ' + esc(fmtUsd(i.gastado)) + " invertidos</span></div>" +
-      (chips ? '<div class="rchips">' + chips + "</div>" : "") +
-      (i.notas ? '<p class="mut imp-n">' + esc(i.notas) + "</p>" : "") + '</div><div class="imp-v">' +
-      (r.clics != null
-        ? "<b>" + fmtNum(r.clics) + "</b><span>clics a WhatsApp</span>" +
-          (cpc != null ? '<span class="cpc">' + esc(fmtUsd(cpc)) + " c/u</span>" : "")
-        : '<span class="mut">Sin clics anotados</span>') +
-      (S.canWrite ? '<button class="btn sm ghost" type="button" data-act="impedit" data-id="' + esc(i.id) + '">Editar</button>' : "") +
-      "</div></div>";
-  }
   /** Presupuesto: lo invertido y el saldo, en una línea secundaria (con aviso al 80 % y en rojo si se pasó). */
   function budgetBlock(r) {
     var b = budgetIn(r.desde, r.hasta), t = adsTotals(impulsosEn(r.desde, r.hasta)),
@@ -2982,53 +2958,7 @@
       (resQ() && S.canWrite ? '<p class="mut">El presupuesto se define por mes: cámbialo en la vista de cada mes.</p>' : "") +
       "</div>";
   }
-  /** Costo por clic promedio de los meses anteriores con datos (hasta 6), para comparar. */
-  function cpcHistorico(r) {
-    var end = dateObj(r.desde), g = 0, c = 0;
-    for (var k = 1; k <= 6; k++) {
-      var d = new Date(end.getFullYear(), end.getMonth() - k, 1), mk = monthKey(d.getFullYear(), d.getMonth());
-      var t = adsTotals(impulsosEn(mk + "-01", mk + "-31"));
-      if (t.clics) {
-        g += t.gastado;
-        c += t.clics;
-      }
-    }
-    return c ? g / c : null;
-  }
-  /**
-   * Cifras de los ads del periodo (sin veredicto: el éxito se mide contra las metas, ver adsAporte) y el impulso
-   * con mejor costo por clic, para marcarlo.
-   */
-  function adsVerdict(r, list, t, tp) {
-    var conClics = list.filter(function (i) {
-      return (i.resultados || {}).clics;
-    }).sort(function (a, b) {
-      return costPer(a.gastado, a.resultados.clics) - costPer(b.gastado, b.resultados.clics);
-    });
-    var cpc = costPer(t.gastado, t.clics);
-    return {
-      best: conClics.length > 1 ? conClics[0].id : null,
-      html: '<div class="v-nums"><div><b>' + (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp</span>" +
-        deltaHtml(t.clics, tp.clics, r.etiqueta) + "</div>" +
-        "<div><b>" + usdBig(cpc) + "</b><span>por clic a WhatsApp</span>" + deltaHtml(cpc, costPer(tp.gastado, tp.clics), r.etiqueta, true) + "</div>" +
-        "<div><b>" + (t.mensajes != null ? fmtNum(t.mensajes) : "–") + "</b><span>mensajes" +
-        (t.mensajes ? " · " + esc(fmtUsd(t.gastado / t.mensajes)) + " c/u" : "") + "</span></div>" +
-        "<div><b>" + (t.alcance != null ? fmtNum(t.alcance) : "–") + "</b><span>personas alcanzadas" +
-        (t.seguidores ? " · " + sgnNum(t.seguidores) + " seguidores" : "") + "</span></div></div>",
-    };
-  }
 
-  /* Aporte de los ads a las metas: el éxito de los ads se mide contra las metas que ya existen en Objetivos.
-     Cada meta a la que los impulsos pueden sumar (seguidores, alcance, clics a WhatsApp, mensajes) muestra su
-     avance y qué parte de lo logrado en el periodo vino de los ads. */
-  function adsKeyOf(m) {
-    var src = srcOf(m, "ig");
-    if (src === "seguidores" || src === "alcance") return src;
-    var n = String(m.name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-    if (/whatsapp|clic/.test(n)) return "clics";
-    if (/mensaje|dm\b|consulta/.test(n)) return "mensajes";
-    return null;
-  }
   /** Lo logrado en el periodo según la cuenta: seguidores ganados o alcance sumado (de las cifras por mes). */
   function logradoCuenta(key, months) {
     var cm = RD().cuentaMes.ig || {};
@@ -3051,115 +2981,227 @@
     var start = prev && prev.seguidores != null ? prev.seguidores : (cm[f] ? cm[f].seguidores_ini : null);
     return end != null && start != null ? end - start : null;
   }
-  function adsAporte(r, t) {
-    var q = resQ(), qn = Math.floor(S.cm / 3), y = S.cy, m0 = q ? qn * 3 : S.cm, i = m0 - qn * 3;
-    var qg = S.goals.get("q-" + y + "-" + (qn + 1)) || {}, months = monthsIn(r.desde, r.hasta), rows = [];
-    metricList(qg, "ig").forEach(function (mb) {
-      var key = adsKeyOf(mb);
-      if (!key) return;
-      var m = effM(mb, "ig", y, qn), ms = calcMilestones(m.cur, m.tar, m.pin), pr = null;
-      if (ms) pr = q ? quarterProgress(m, ms, y, qn) : monthProgress(m, i, ms, y, m0);
-      var ads = t[key];
-      // Clics y mensajes son «del mes»: en el trimestre se suman los valores reales de sus meses.
-      var logrado = null;
-      if (key === "seguidores" || key === "alcance") logrado = logradoCuenta(key, months);
-      else {
-        var idx = q ? [0, 1, 2] : [i];
-        idx.forEach(function (j) {
-          if (hasNum(m.real && m.real[j])) logrado = (logrado || 0) + Number(m.real[j]);
-        });
-      }
-      var share = ads != null && logrado ? Math.min(100, ads / logrado * 100) : null;
-      var nombre = { seguidores: "seguidores ganados", alcance: "del alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key];
-      var texto;
-      if (ads == null) {
-        texto = "Los impulsos no tienen " + ({ seguidores: "seguidores", alcance: "alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key]) +
-          " anotados" + (S.canWrite ? ": anótalos para ver su aporte." : ".");
-      } else if (logrado == null) {
-        texto = "Los ads sumaron " + fmtNum(ads) + " " + ({ seguidores: "seguidores", alcance: "de alcance", clics: "clics a WhatsApp", mensajes: "mensajes" }[key]) + ".";
-      } else if (key === "alcance") {
-        texto = fmtNum(ads) + " de " + fmtNum(logrado) + " " + nombre + " vino de los ads (" + Math.round(share) + " %).";
-      } else {
-        texto = fmtNum(ads) + " de " + fmtNum(logrado) + " " + nombre + " vinieron de los ads (" + Math.round(share) + " %).";
-      }
-      var estado = pr
-        ? (pr.real != null ? "<b>" + fmtNum(pr.real, ms.d) + "</b> de " + fmtNum(pr.target, ms.d) : "– de " + fmtNum(pr.target, ms.d))
-        : (hasNum(m.tar) ? "meta " + fmtNum(Number(m.tar)) : "sin meta");
-      rows.push({
-        ok: ads != null && ads > 0,
-        k: pr ? pr.st.k : "pend",
-        html: '<div class="aporte">' + ring(pr ? pr.pct : null, pr ? pr.st.k : "pend") + '<div class="ap-b"><div class="gt-h"><b>' +
-          esc(m.name || "Sin nombre") + '</b><span class="ap-e">' + estado + "</span>" + (pr ? mpill(pr.st) : "") + "</div>" +
-          (share != null
-            ? '<div class="ap-bar" role="img" aria-label="' + Math.round(share) + ' % de ads"><i class="ap-ads" style="width:' + share.toFixed(1) +
-              '%"></i></div><div class="ap-k"><span><i class="hk hk-ads"></i>ads</span><span><i class="hk hk-org"></i>orgánico y otros</span></div>'
-            : "") +
-          '<p class="ap-t">' + esc(texto) + "</p></div></div>",
-      });
+  /* Ads enfocado en las metas: lo que se muestra de los ads son las mismas métricas de los objetivos del periodo.
+     Cada meta se traduce a lo que los ads pueden mostrar de ella:
+       · tipo «ads»:  lo que Meta reporta del impulso (seguidores, alcance, clics a WhatsApp, mensajes, visitas)
+       · tipo «post»: la cifra del post impulsado en Instagram, sumada (interacciones, reproducciones)
+       · tipo «avg»:  la media por post: impulsados contra no impulsados (media de likes, de guardados…) */
+  var FOCO_ADS = {
+    seguidores: { u: "seguidores", u1: "seguidor", via: "llegaron por los ads" },
+    alcance: { u: "personas alcanzadas", u1: "mil personas", via: "alcanzadas con los ads", mil: true },
+    clics: { u: "clics a WhatsApp", u1: "clic", via: "llegaron por los ads" },
+    mensajes: { u: "mensajes", u1: "mensaje", via: "llegaron por los ads" },
+    visitas: { u: "visitas al perfil", u1: "visita", via: "llegaron por los ads" },
+  };
+  function focoDe(m) {
+    var src = srcOf(m, "ig");
+    if (src === "seguidores" || src === "alcance") return { k: src, tipo: "ads" };
+    if (src === "interacciones" || src === "reproducciones") return { k: src, tipo: "post" };
+    if (src.indexOf("prom_") === 0) return { k: src.slice(5), tipo: "avg" };
+    var n = String(m.name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    if (/whatsapp|clic/.test(n)) return { k: "clics", tipo: "ads" };
+    if (/mensaje|consulta/.test(n)) return { k: "mensajes", tipo: "ads" };
+    if (/visita|perfil/.test(n)) return { k: "visitas", tipo: "ads" };
+    return null;
+  }
+  /** Las metas del trimestre que los ads pueden mover, sin repetir. Sin metas así: clics, mensajes y alcance. */
+  function adsFocos() {
+    var qn = Math.floor(S.cm / 3), qg = S.goals.get("q-" + S.cy + "-" + (qn + 1)) || {}, out = [], seen = {};
+    metricList(qg, "ig").forEach(function (m) {
+      var f = focoDe(m);
+      if (!f || seen[f.tipo + f.k]) return;
+      seen[f.tipo + f.k] = 1;
+      f.name = m.name || "Sin nombre";
+      f.m = m;
+      out.push(f);
     });
-    if (!rows.length) {
-      return '<div class="card"><h3>Aporte a las metas</h3><p class="gv-empty">' +
-        (S.canWrite
-          ? "Ninguna meta de este periodo recibe aporte de los ads. Para medir si funcionan, define en Objetivos una meta de seguidores, alcance, clics a WhatsApp o mensajes."
-          : "No hay metas de este periodo a las que los ads aporten.") + "</p></div>";
+    return out;
+  }
+  var FOCOS_BASE = [
+    { k: "clics", tipo: "ads", name: "Clics a WhatsApp" },
+    { k: "mensajes", tipo: "ads", name: "Mensajes" },
+    { k: "alcance", tipo: "ads", name: "Alcance" },
+  ];
+  /** El valor de un impulso para una meta (o null si no hay dato). */
+  function valImp(i, f) {
+    if (f.tipo === "ads") {
+      var v = (i.resultados || {})[f.k];
+      return v == null ? null : v;
     }
-    var con = rows.filter(function (x) {
-        return x.ok;
-      }),
-      ok = con.filter(function (x) {
-        return x.k === "ok";
-      }).length;
-    var per = q ? "este trimestre" : "este mes";
-    var resumen = !con.length
-      ? "Los ads de " + per + " todavía no muestran aporte a las metas."
-      : "Los ads aportaron a " + plural(con.length, "meta", "metas") + " de " + per +
-        (ok ? ", y " + (ok === 1 ? "una ya está cumplida" : ok + " ya están cumplidas") : "") + ".";
-    return '<div class="card"><div class="card-h"><h3>Aporte a las metas</h3><a class="btn sm ghost" href="#objetivos">Ver objetivos</a></div>' +
-      '<p class="ap-res">' + esc(resumen) + '</p><div class="aportes">' + rows.map(function (x) {
-        return x.html;
-      }).join("") + "</div></div>";
+    var p = S.posts.get(i.publicacion_id), x = p && igMet(p);
+    return x && x.m && x.m[f.k] != null ? x.m[f.k] : null;
+  }
+  function focoLabel(f) {
+    if (f.tipo === "ads") return FOCO_ADS[f.k].u;
+    return (MET[f.k] || f.k).toLowerCase();
+  }
+  /** Una tarjeta por meta: lo que consiguieron los ads en esa meta. */
+  function focoTile(f, r, list, t) {
+    var idsImp = {}, months = monthsIn(r.desde, r.hasta), v, big = "–", lbl = "", sub = "", cls = "";
+    list.forEach(function (i) {
+      idsImp[i.publicacion_id] = 1;
+    });
+    if (f.tipo === "ads") {
+      v = t[f.k];
+      var d = FOCO_ADS[f.k];
+      if (v == null) {
+        sub = S.canWrite ? "Anota los " + d.u + " en cada impulso." : "Sin datos de los impulsos.";
+      } else {
+        big = (f.k === "seguidores" ? sgnNum(v) : fmtNum(v));
+        lbl = d.u + " " + d.via;
+        var costo = d.mil ? (v ? t.gastado / v * 1000 : null) : costPer(t.gastado, v);
+        var logrado = null;
+        if (f.k === "seguidores" || f.k === "alcance") logrado = logradoCuenta(f.k, months);
+        else if (f.m) {
+          var qn = Math.floor(S.cm / 3), em = effM(f.m, "ig", S.cy, qn), idx = resQ() ? [0, 1, 2] : [S.cm - qn * 3];
+          idx.forEach(function (j) {
+            if (hasNum(em.real && em.real[j])) logrado = (logrado || 0) + Number(em.real[j]);
+          });
+        }
+        sub = (costo != null ? fmtUsd(costo) + " por " + d.u1 : "") +
+          (logrado ? (costo != null ? " · " : "") + Math.round(Math.min(100, v / logrado * 100)) + " % de los " + fmtNum(logrado) + " del periodo" : "");
+      }
+    } else if (f.tipo === "post") {
+      var s = 0, any = false;
+      Object.keys(idsImp).forEach(function (pid) {
+        var p = S.posts.get(pid), x = p && igMet(p);
+        if (x && x.m && x.m[f.k] != null) {
+          s += x.m[f.k];
+          any = true;
+        }
+      });
+      if (any) {
+        big = fmtNum(s);
+        lbl = focoLabel(f) + " en los posts impulsados";
+        var cm = RD().cuentaMes.ig || {}, tot = 0, hay = false;
+        months.forEach(function (k) {
+          if (cm[k] && cm[k][f.k] != null) {
+            tot += cm[k][f.k];
+            hay = true;
+          }
+        });
+        sub = (s ? fmtUsd(t.gastado / s) + " por " + (f.k === "reproducciones" ? "reproducción" : "interacción") : "") +
+          (hay && tot ? " · " + Math.round(Math.min(100, s / tot * 100)) + " % del periodo" : "");
+      } else sub = "Los posts impulsados aún no tienen métricas de Instagram.";
+    } else {
+      // Media: posts publicados en el periodo, impulsados contra no impulsados.
+      var si = 0, ni = 0, so = 0, no = 0;
+      allPosts().forEach(function (p) {
+        var x = igMet(p), day = postDay(p, x);
+        if (!hasIg(p) || !x || !x.m || x.m[f.k] == null || day < r.desde || day > r.hasta) return;
+        if (impulsosDe(p.id).length) {
+          si += x.m[f.k];
+          ni++;
+        } else {
+          so += x.m[f.k];
+          no++;
+        }
+      });
+      if (ni && no && so) {
+        var up = (si / ni - so / no) / (so / no) * 100;
+        big = (up >= 0 ? "+" : "−") + fmtNum(Math.abs(up)) + " %";
+        cls = up >= 0 ? " good" : " bad";
+        lbl = f.k === "likes" ? "más likes de media en los posts impulsados" : "de " + focoLabel(f) + " de media en los impulsados";
+        if (up < 0) lbl = f.k === "likes" ? "menos likes de media en los posts impulsados" : lbl;
+        sub = fmtNum(si / ni) + " de media en los impulsados · " + fmtNum(so / no) + " en los demás";
+      } else if (ni) {
+        big = fmtNum(si / ni);
+        lbl = focoLabel(f) + " de media en los posts impulsados";
+        sub = "Aún no hay posts sin impulsar con métricas para comparar.";
+      } else sub = "Los posts impulsados aún no tienen métricas de Instagram.";
+    }
+    return '<div class="ftile' + cls + '"><span class="fk">' + esc(f.name) + "</span><b>" + big + "</b>" +
+      (lbl ? '<span class="fl">' + esc(lbl) + "</span>" : "") + (sub ? '<span class="fs">' + esc(sub) + "</span>" : "") + "</div>";
+  }
+  /** Tarjeta de un impulso: primero las cifras de las metas (la que ordena, destacada), después lo gastado. */
+  function impCard(i, best, focos, sk) {
+    focos = focos || adsFocos();
+    if (!focos.length) focos = FOCOS_BASE;
+    var p = S.posts.get(i.publicacion_id) || { id: i.publicacion_id, title: "", format: "reel" }, x = igMet(p);
+    var main = null;
+    for (var n = 0; n < focos.length; n++) if (focos[n].tipo + focos[n].k === sk) main = focos[n];
+    main = main || focos[0];
+    var chips = focos.filter(function (f) {
+      return f !== main;
+    }).map(function (f) {
+      var v = valImp(i, f);
+      return v == null ? "" : '<span class="rchip"><b>' + fmtNum(v) + "</b> " + esc(focoLabel(f)) + "</span>";
+    }).join("");
+    var mv = valImp(i, main), unit = main.tipo === "ads" && main.k !== "alcance" ? costPer(i.gastado, mv) : null;
+    return '<div class="imp' + (best ? " best" : "") + '">' + thumbHtml(p, x, "tthumb") + '<div class="imp-b"><a href="#post-' + esc(p.id) + '">' +
+      (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a>" +
+      (best ? '<span class="best-tag">El que más ' + esc(main.tipo === "avg" ? "subió la media" : "aportó") + "</span>" : "") +
+      '<div class="meta"><span class="mt">' + esc(impDates(i)) + "</span>" +
+      '<span class="mt">· ' + esc(fmtUsd(i.gastado)) + " invertidos</span></div>" +
+      (chips ? '<div class="rchips">' + chips + "</div>" : "") +
+      (i.notas ? '<p class="mut imp-n">' + esc(i.notas) + "</p>" : "") + '</div><div class="imp-v">' +
+      (mv != null
+        ? "<b>" + (main.k === "seguidores" ? sgnNum(mv) : fmtNum(mv)) + "</b><span>" + esc(focoLabel(main)) + "</span>" +
+          (unit != null ? '<span class="cpc">' + esc(fmtUsd(unit)) + " c/u</span>" : "")
+        : '<span class="mut">Sin ' + esc(focoLabel(main)) + "</span>") +
+      (S.canWrite ? '<button class="btn sm ghost" type="button" data-act="impedit" data-id="' + esc(i.id) + '">Editar</button>' : "") +
+      "</div></div>";
   }
   function adsSection(r) {
-    var list = impulsosEn(r.desde, r.hasta), b = budgetIn(r.desde, r.hasta), t = adsTotals(list),
-      tp = adsTotals(impulsosEn(r.pDesde, r.pHasta));
+    var list = impulsosEn(r.desde, r.hasta), b = budgetIn(r.desde, r.hasta), t = adsTotals(list);
     var h = '<section class="rsec" id="sec-ads"><div class="rsec-h"><h2>Ads</h2>' +
       (S.canWrite ? '<button class="btn sm primary" type="button" data-act="impnew">+ Registrar impulso</button>' : "") + "</div>";
     if (!list.length && b == null && !S.budEdit) {
       return h + '<div class="card"><div class="empty" style="border:0;padding:16px 8px"><h3>' +
         (S.canWrite ? "Registra la inversión en ads de este " + (resQ() ? "trimestre" : "mes") : "Sin inversión en ads en este periodo") +
         "</h3><p>" + (S.canWrite
-          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula cuánto costó cada clic a WhatsApp y cuánto aportaron los ads a las metas."
-          : "Aquí verás qué consiguieron los posts impulsados y cuánto se invirtió.") + "</p>" +
+          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica muestra lo que los ads aportaron a las metas del periodo."
+          : "Aquí verás lo que los posts impulsados aportaron a las metas y cuánto se invirtió.") + "</p>" +
         (S.canWrite && !resQ()
           ? '<div class="acts"><button class="btn primary" type="button" data-act="budedit">Definir el presupuesto del mes</button><button class="btn" type="button" data-act="impnew">Registrar impulso</button></div>'
           : "") + "</div></div></section>";
     }
-    // 1) aporte a las metas (ahí se ve si funcionaron) · 2) las cifras · 3) cada impulso · 4) presupuesto · 5) tendencia
-    var v = list.length ? adsVerdict(r, list, t, tp) : null;
-    if (list.length) h += adsAporte(r, t);
-    if (v) h += '<div class="card"><h3>Lo que consiguieron los ads</h3>' + v.html + "</div>";
+    var focos = adsFocos(), conMetas = focos.length;
+    if (!conMetas) focos = FOCOS_BASE;
     if (list.length) {
-      var sk = S.impSort || "costo";
-      list = list.slice().sort(function (a, c) {
-        if (sk === "costo") {
-          var ca = costPer(a.gastado, (a.resultados || {}).clics), cc = costPer(c.gastado, (c.resultados || {}).clics);
-          return (ca == null ? 1e9 : ca) - (cc == null ? 1e9 : cc);
-        }
-        return c.inicio.localeCompare(a.inicio);
+      h += '<div class="card"><div class="card-h"><h3>Lo que consiguieron los ads' +
+        (conMetas ? " para las metas" : "") + '</h3><a class="btn sm ghost" href="#objetivos">' + (conMetas ? "Ver metas" : "Objetivos") + "</a></div>" +
+        (conMetas ? "" : '<p class="muted small">' + (S.canWrite
+          ? "Este trimestre no tiene metas que los ads puedan mover. Define en Objetivos una meta de seguidores, alcance, media de likes, clics a WhatsApp… y aquí se medirá contra ella."
+          : "Resultados de los posts impulsados.") + "</p>") +
+        '<div class="ftiles">' + focos.map(function (f) {
+          return focoTile(f, r, list, t);
+        }).join("") + "</div></div>";
+      // Impulsos: se ordenan por cada meta (o por fecha); el primero es el que más aportó a esa meta.
+      var keys = focos.map(function (f) {
+        return [f.tipo + f.k, f.name];
+      }).concat([["fecha", "Fecha"]]);
+      var sk = S.impSort && keys.some(function (k) {
+        return k[0] === S.impSort;
+      }) ? S.impSort : keys[0][0];
+      var fsk = null;
+      focos.forEach(function (f) {
+        if (f.tipo + f.k === sk) fsk = f;
       });
+      list = list.slice().sort(function (a, c) {
+        if (!fsk) return c.inicio.localeCompare(a.inicio);
+        var va = valImp(a, fsk), vc = valImp(c, fsk);
+        return (vc == null ? -1e12 : vc) - (va == null ? -1e12 : va);
+      });
+      var best = fsk && list.length > 1 && valImp(list[0], fsk) != null ? list[0].id : null;
       h += '<div class="card"><div class="card-h"><h3>Qué consiguió cada impulso</h3><div class="seg" role="group" aria-label="Ordenar por">' +
-        [["costo", "Costo por clic"], ["fecha", "Fecha"]].map(function (x) {
-          return '<button type="button" data-act="impsort" data-v="' + x[0] + '" aria-pressed="' + (sk === x[0]) + '">' + x[1] + "</button>";
+        keys.map(function (x) {
+          return '<button type="button" data-act="impsort" data-v="' + esc(x[0]) + '" aria-pressed="' + (sk === x[0]) + '">' + esc(x[1]) + "</button>";
         }).join("") + '</div></div><div class="imps">' + list.map(function (i) {
-          return impCard(i, v && v.best === i.id);
+          return impCard(i, best === i.id, focos, sk);
         }).join("") + "</div></div>";
     }
-    h += budgetBlock(r) + adsHistory(r);
+    h += budgetBlock(r) + adsHistory(r, focos);
     return h + "</section>";
   }
-  /** Últimos 6 meses: cuántos clics a WhatsApp dio cada mes y a qué costo (y lo invertido, en pequeño). */
-  function adsHistory(r) {
-    var end = dateObj(r.hasta), rows = [], max = 0;
+  /** Últimos 6 meses: lo que los ads dieron cada mes en la primera meta que se registra en los impulsos. */
+  function adsHistory(r, focos) {
+    var f = null;
+    (focos || []).forEach(function (x) {
+      if (!f && x.tipo === "ads") f = x;
+    });
+    f = f || FOCOS_BASE[0];
+    var d0 = FOCO_ADS[f.k], end = dateObj(r.hasta), rows = [], max = 0;
     for (var k = 5; k >= 0; k--) {
       var d = new Date(end.getFullYear(), end.getMonth() - k, 1), mk = monthKey(d.getFullYear(), d.getMonth());
       var b = (ADS().presupuestos[mk] || {}).monto, t = adsTotals(impulsosEn(mk + "-01", mk + "-31"));
@@ -3167,18 +3209,18 @@
         rows.push({ m: d.getMonth(), vacio: true });
         continue;
       }
-      max = Math.max(max, t.clics || 0);
-      rows.push({ m: d.getMonth(), b: b, g: t.gastado, c: t.clics, cpc: costPer(t.gastado, t.clics) });
+      max = Math.max(max, t[f.k] || 0);
+      rows.push({ m: d.getMonth(), b: b, g: t.gastado, v: t[f.k], c: d0.mil ? (t[f.k] ? t.gastado / t[f.k] * 1000 : null) : costPer(t.gastado, t[f.k]) });
     }
     if (rows.every(function (x) {
       return x.vacio;
     })) return "";
-    return '<div class="card"><h3>Cómo vienen los últimos 6 meses</h3><div class="hist">' + rows.map(function (x) {
+    return '<div class="card"><h3>Últimos 6 meses · ' + esc(f.name) + '</h3><div class="hist">' + rows.map(function (x) {
       if (x.vacio) return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><span class="mut">Sin ads</span></div>';
       return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><div class="hbar"><i class="hb-c" style="width:' +
-        (max ? (x.c || 0) / max * 100 : 0).toFixed(1) + '%"></i></div><span class="hv">' +
-        (x.c != null ? fmtNum(x.c) + " clics" : '<span class="mut">sin clics</span>') +
-        (x.cpc != null ? ' <span class="mut">· ' + esc(fmtUsd(x.cpc)) + " c/u</span>" : "") + "</span>" +
+        (max ? (x.v || 0) / max * 100 : 0).toFixed(1) + '%"></i></div><span class="hv">' +
+        (x.v != null ? fmtNum(x.v) + " " + esc(d0.u) : '<span class="mut">sin dato</span>') +
+        (x.c != null ? ' <span class="mut">· ' + esc(fmtUsd(x.c)) + " por " + esc(d0.u1) + "</span>" : "") + "</span>" +
         '<span class="hc">' + esc(fmtUsd(x.g)) + (x.b != null ? " de " + esc(fmtUsd(x.b)) : "") + "</span></div>";
     }).join("") + "</div></div>";
   }
