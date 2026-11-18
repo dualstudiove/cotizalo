@@ -1141,6 +1141,9 @@
     ["prom_compartidos", "Media de compartidos"],
     ["prom_alcance", "Media de alcance"],
     ["prom_interacciones", "Media de interacciones"],
+    ["ads_clics", "Clics al enlace"],
+    ["ads_mensajes", "Mensajes"],
+    ["ads_visitas", "Visitas al perfil"],
   ];
   function srcLabel(k) {
     for (var i = 0; i < SRC.length; i++) if (SRC[i][0] === k) return SRC[i][1];
@@ -1150,6 +1153,14 @@
     if (!src || src === "manual") return null;
     var key = monthKey(y, mi);
     if (key > todayStr().slice(0, 7)) return null;
+    if (src.indexOf("ads_") === 0) {
+      var ka = src.slice(4), sa = null;
+      impulsosEn(key + "-01", key + "-31").forEach(function (i) {
+        var v = (i.resultados || {})[ka];
+        if (v != null) sa = (sa || 0) + v;
+      });
+      return sa;
+    }
     if (src.indexOf("prom_") === 0) {
       var k = src.slice(5), n = 0, t = 0;
       allPosts().forEach(function (p) {
@@ -1196,6 +1207,11 @@
   function guessSrc(name) {
     var n = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     if (!n) return null;
+    if (!/media|promedio/.test(n)) {
+      if (/whatsapp|clic|enlace/.test(n)) return "ads_clics";
+      if (/mensaje|consulta/.test(n)) return "ads_mensajes";
+      if (/visita|perfil/.test(n)) return "ads_visitas";
+    }
     if (/media|promedio/.test(n)) {
       if (/like/.test(n)) return "prom_likes";
       if (/coment/.test(n)) return "prom_comentarios";
@@ -1260,7 +1276,7 @@
           ? '<div class="fld"><label for="mf-' + uid + '-src">El valor real sale de</label><select class="in" id="mf-' + uid +
             '-src" data-mf="' + key + 'src">' + SRC.map(function (o) {
               return '<option value="' + o[0] + '"' + ((m.src || "manual") === o[0] ? " selected" : "") + ">" +
-                (o[0] === "manual" ? "Lo escribo a mano" : "Instagram: " + o[1].charAt(0).toLowerCase() + o[1].slice(1)) + "</option>";
+                (o[0] === "manual" ? "Lo escribo a mano" : (o[0].indexOf("ads_") === 0 ? "Ads: " : "Instagram: ") + o[1].charAt(0).toLowerCase() + o[1].slice(1)) + "</option>";
             }).join("") + "</select></div>"
           : "") +
         '<div class="fld"><label for="mf-' + uid + '-cur">Hoy</label><input class="in" id="mf-' +
@@ -1594,7 +1610,9 @@
   function metricRead(gid, pl, m0, y, qn) {
     var m = effM(m0, pl, y, qn), ms = calcMilestones(m.cur, m.tar, m.pin), key = gid + "|" + pl + "|" + m.id + "|";
     var igOk = igCon() && igCon().estado !== "error";
-    var src = m._isAuto
+    var src = m._isAuto && String(m.src).indexOf("ads_") === 0
+      ? '<span class="auto">' + BOOST_SVG + "Se llena con los impulsos</span>"
+      : m._isAuto
       ? '<span class="auto">' + IG_SVG + (igOk ? "Se llena solo" : "Se llenará al conectar Instagram") + "</span>"
       : '<span class="auto">Se escribe a mano</span>';
     if (!ms) {
@@ -1687,7 +1705,8 @@
       return srcOf(m, "ig") === "manual";
     });
     var needsIg = metricList(qg, "ig").some(function (m) {
-      return srcOf(m, "ig") !== "manual";
+      var sr = srcOf(m, "ig");
+      return sr !== "manual" && sr.indexOf("ads_") !== 0;
     });
     if (needsIg && (!igCon() || igCon().estado === "error")) {
       h += igConnectNotice("Las metas de Instagram (seguidores, alcance, medias…) se llenarán solas cuando la cuenta esté conectada.");
@@ -2896,17 +2915,17 @@
   function costPer(g, n) {
     return n ? g / n : null;
   }
-  var OBJ_LABEL = { clics: "Clics a WhatsApp", mensajes: "Mensajes", perfil: "Visitas al perfil", alcance: "Alcance" };
+  var OBJ_LABEL = { clics: "Clics al enlace", mensajes: "Mensajes", perfil: "Visitas al perfil", alcance: "Alcance" };
   var RES_LABEL = {
     alcance: "Alcance",
-    clics: "Clics a WhatsApp",
+    clics: "Clics al enlace",
     mensajes: "Mensajes",
     visitas: "Visitas al perfil",
     seguidores: "Seguidores",
   };
   var RES_CHIP = {
     alcance: "alcance",
-    clics: "clics a WhatsApp",
+    clics: "clics al enlace",
     mensajes: "mensajes",
     visitas: "visitas al perfil",
     seguidores: "seguidores",
@@ -2983,13 +3002,13 @@
   }
   /* Ads enfocado en las metas: lo que se muestra de los ads son las mismas métricas de los objetivos del periodo.
      Cada meta se traduce a lo que los ads pueden mostrar de ella:
-       · tipo «ads»:  lo que Meta reporta del impulso (seguidores, alcance, clics a WhatsApp, mensajes, visitas)
+       · tipo «ads»:  lo que Meta reporta del impulso (seguidores, alcance, clics al enlace, mensajes, visitas)
        · tipo «post»: la cifra del post impulsado en Instagram, sumada (interacciones, reproducciones)
        · tipo «avg»:  la media por post: impulsados contra no impulsados (media de likes, de guardados…) */
   var FOCO_ADS = {
     seguidores: { u: "seguidores", u1: "seguidor", via: "llegaron por los ads" },
     alcance: { u: "personas alcanzadas", u1: "mil personas", via: "alcanzadas con los ads", mil: true },
-    clics: { u: "clics a WhatsApp", u1: "clic", via: "llegaron por los ads" },
+    clics: { u: "clics al enlace", u1: "clic", via: "llegaron por los ads" },
     mensajes: { u: "mensajes", u1: "mensaje", via: "llegaron por los ads" },
     visitas: { u: "visitas al perfil", u1: "visita", via: "llegaron por los ads" },
   };
@@ -2998,6 +3017,7 @@
     if (src === "seguidores" || src === "alcance") return { k: src, tipo: "ads" };
     if (src === "interacciones" || src === "reproducciones") return { k: src, tipo: "post" };
     if (src.indexOf("prom_") === 0) return { k: src.slice(5), tipo: "avg" };
+    if (src.indexOf("ads_") === 0) return { k: src.slice(4), tipo: "ads" };
     var n = String(m.name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     if (/whatsapp|clic/.test(n)) return { k: "clics", tipo: "ads" };
     if (/mensaje|consulta/.test(n)) return { k: "mensajes", tipo: "ads" };
@@ -3018,7 +3038,7 @@
     return out;
   }
   var FOCOS_BASE = [
-    { k: "clics", tipo: "ads", name: "Clics a WhatsApp" },
+    { k: "clics", tipo: "ads", name: "Clics al enlace" },
     { k: "mensajes", tipo: "ads", name: "Mensajes" },
     { k: "alcance", tipo: "ads", name: "Alcance" },
   ];
@@ -3052,7 +3072,7 @@
         var costo = d.mil ? (v ? t.gastado / v * 1000 : null) : costPer(t.gastado, v);
         var logrado = null;
         if (f.k === "seguidores" || f.k === "alcance") logrado = logradoCuenta(f.k, months);
-        else if (f.m) {
+        else if (f.m && srcOf(f.m, "ig").indexOf("ads_") !== 0) {
           var qn = Math.floor(S.cm / 3), em = effM(f.m, "ig", S.cy, qn), idx = resQ() ? [0, 1, 2] : [S.cm - qn * 3];
           idx.forEach(function (j) {
             if (hasNum(em.real && em.real[j])) logrado = (logrado || 0) + Number(em.real[j]);
@@ -3162,7 +3182,7 @@
       h += '<div class="card"><div class="card-h"><h3>Lo que consiguieron los ads' +
         (conMetas ? " para las metas" : "") + '</h3><a class="btn sm ghost" href="#objetivos">' + (conMetas ? "Ver metas" : "Objetivos") + "</a></div>" +
         (conMetas ? "" : '<p class="muted small">' + (S.canWrite
-          ? "Este trimestre no tiene metas que los ads puedan mover. Define en Objetivos una meta de seguidores, alcance, media de likes, clics a WhatsApp… y aquí se medirá contra ella."
+          ? "Este trimestre no tiene metas que los ads puedan mover. Define en Objetivos una meta de seguidores, alcance, media de likes, clics al enlace… y aquí se medirá contra ella."
           : "Resultados de los posts impulsados.") + "</p>") +
         '<div class="ftiles">' + focos.map(function (f) {
           return focoTile(f, r, list, t);
@@ -3379,7 +3399,7 @@
     }
     var t = adsTotals(list), org = x && x.m ? x.m.alcance : null;
     var h = '<div class="pvr two"><div><b>' + fmtUsd(t.gastado) + "</b><span>invertido</span></div><div><b>" +
-      (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp" +
+      (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics al enlace" +
       (t.clics ? " · " + esc(fmtUsd(t.gastado / t.clics)) + " c/u" : "") + "</span></div></div>";
     if (t.alcance != null || org != null) {
       h += '<p class="muted small">Alcance pagado <b>' + (t.alcance != null ? fmtNum(t.alcance) : "–") + "</b> · orgánico <b>" +
@@ -3436,7 +3456,7 @@
       b = budgetIn(r.desde, r.hasta);
     var inversion = kpi("Inversión en ads", usdBig(t.gastado), "",
       b != null ? "de " + fmtUsd(b) + (t.gastado <= b ? " · quedan " + fmtUsd(b - t.gastado) : " · se pasó") : "Sin presupuesto definido");
-    var clics = kpi("Clics a WhatsApp", t.clics != null ? fmtNum(t.clics) : "–", deltaHtml(t.clics, tp.clics, r.etiqueta),
+    var clics = kpi("Clics al enlace", t.clics != null ? fmtNum(t.clics) : "–", deltaHtml(t.clics, tp.clics, r.etiqueta),
       t.clics ? fmtUsd(t.gastado / t.clics) + " por clic" : "de los posts impulsados");
     if (!c) {
       var planned = allPosts().filter(function (p) {
