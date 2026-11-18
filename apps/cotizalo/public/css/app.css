@@ -470,8 +470,10 @@
     color: var(--ink-3);
     margin-right: 2px;
   }
+  /* Con el nombre de la promoción puede ser largo: que baje de línea en vez de salirse de la tarjeta */
   .promo-tag {
-    white-space: nowrap;
+    white-space: normal;
+    max-width: 100%;
   }
   .item details {
     position: relative;

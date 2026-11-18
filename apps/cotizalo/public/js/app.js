@@ -241,13 +241,12 @@ function renderRate() {
 }
 
 function renderAviso() {
-  const n = S.cfg.negocio;
   const fecha = S.cfg.precios_actualizados_en ? diaLocal(S.cfg.precios_actualizados_en) : null;
-  $("#aviso").innerHTML = `<div class="notice">${icon("info")}<div>${
-    fecha ? `Precios actualizados el <b>${fmtFecha(fecha)}</b>. ` : ""
-  }Tu presupuesto tendrá una validez de <b>${n.dias_vigencia} ${
-    n.dias_vigencia === 1 ? "día" : "días"
-  }</b>.</div></div>`;
+  $("#aviso").innerHTML = fecha
+    ? `<div class="notice">${icon("info")}<div>Última actualización de precios: <b>${
+      fmtFecha(fecha)
+    }</b></div></div>`
+    : "";
 }
 
 function renderChips() {
@@ -387,12 +386,12 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** Etiqueta «−25 % hasta el 20/11» de un examen o perfil en promoción (en el color de información). */
+/** Etiqueta «Semana del corazón · −25 % hasta el 20/11/2026» (en el color de información). */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
-  return `<span class="badge info promo-tag" title="${
-    esc(x.promo.nombre)
-  }">−${x.promo.porcentaje} % hasta el ${fmtFecha(x.promo.hasta)}</span>`;
+  return `<span class="badge info promo-tag">${
+    x.promo.nombre ? `${esc(x.promo.nombre)} · ` : ""
+  }−${x.promo.porcentaje} % hasta el ${fmtFecha(x.promo.hasta)}</span>`;
 }
 
 /**
@@ -409,13 +408,17 @@ function botonAgregar(act, x, sel) {
   }</span></button>`;
 }
 
-/** Línea de debajo del nombre: promoción e indicaciones (lo que sirve para decidir). */
-const metaTarjeta = (x) =>
-  x.promo || x.indicaciones
-    ? `<div class="meta">${etiquetaPromo(x)}${
-      x.indicaciones ? `<span>${icon("info")} ${esc(x.indicaciones)}</span>` : ""
-    }</div>`
+/**
+ * Debajo del nombre, cada cosa en su línea: en un examen, las indicaciones y luego la promoción; en un perfil,
+ * la promoción primero (las indicaciones, si hay, después).
+ */
+function metaTarjeta(x, promoPrimero = false) {
+  const ind = x.indicaciones
+    ? `<div class="meta">${icon("info")} <span>${esc(x.indicaciones)}</span></div>`
     : "";
+  const promo = x.promo ? `<div class="meta">${etiquetaPromo(x)}</div>` : "";
+  return promoPrimero ? promo + ind : ind + promo;
+}
 
 // Tarjeta sencilla: nombre, precio y botón; debajo, solo promoción e indicaciones. Sin categoría ni
 // descripción (la descripción queda para el PDF).
@@ -459,7 +462,7 @@ function cardPerfil(p) {
   const info = pfMap.get(p.id);
   const n = info.ids.size;
   return `<article class="item perfil ${sel ? "sel" : ""}">
-    <div><h3>${esc(p.nombre)}</h3>${metaTarjeta(p)}</div>
+    <div><h3>${esc(p.nombre)}</h3>${metaTarjeta(p, true)}</div>
     <div class="side">${precioConPromo(p)}${botonAgregar("pf", p, sel)}</div>
     <p class="incluye"><b>${n === 1 ? "Incluye 1 examen" : `Incluye ${n} exámenes`}:</b> ${
     [...info.ids].map((id) => esc(p.examenes.find((m) => m.id === id)?.nombre)).join(", ")

@@ -934,12 +934,18 @@ function dibujarStory(d, g, H, dy = 0) {
   const xd = W - M - pad;
   const fItem = font(600, 36);
   const fPrecio = font(700, 36);
+  const fPromo = font(600, 26);
+  const fAntes = font(500, 28);
   const filas = d.items.map((it) => {
     const precio = ref(it.precio_cent);
     const ancho = xd - xi - medir(precio, fPrecio) - 32;
     const lineas = partir(it.nombre, fItem, ancho);
-    const promo = it.promo ? textoPromo(it.promo) : null;
-    return { precio, lineas, promo, alto: lineas.length * 46 + (promo ? 44 : 0) };
+    // En promoción: debajo, el nombre de la promo a la izquierda y el precio de antes tachado a la derecha
+    const antes = it.promo ? ref(it.promo.antes) : null;
+    const promo = it.promo
+      ? partir(textoPromo(it.promo), fPromo, xd - xi - medir(antes, fAntes) - 28)
+      : [];
+    return { precio, lineas, promo, antes, alto: lineas.length * 46 + promo.length * 38 + (promo.length ? 6 : 0) };
   });
   const sep = 40;
   const altoTarjeta = pad * 2 + filas.reduce((s, f) => s + f.alto, 0) +
@@ -957,9 +963,17 @@ function dibujarStory(d, g, H, dy = 0) {
       texto(l, xi, yi + 36, fItem, C.ink);
       yi += 46;
     }
-    if (f.promo) {
-      texto(f.promo, xi, yi + 32, font(600, 26), C.promo);
-      yi += 44;
+    if (f.antes) {
+      yi += 6;
+      const ya = yi + 30;
+      texto(f.antes, xd, ya, fAntes, C.muted, "right");
+      const wa = medir(f.antes, fAntes);
+      g.fillStyle = C.muted;
+      g.fillRect(xd - wa, ya - 10, wa, 2.5); // tachado
+      for (const l of f.promo) {
+        texto(l, xi, yi + 30, fPromo, C.promo);
+        yi += 38;
+      }
     }
   });
   y += altoTarjeta + 32;
