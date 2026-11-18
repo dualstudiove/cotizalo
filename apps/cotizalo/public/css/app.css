@@ -142,8 +142,7 @@
     padding-bottom: 110px;
   }
 
-  /* Celular: la tarjeta no agrega (es fácil tocarla sin querer al deslizar); solo el botón «Agregar».
-     En los perfiles, tocar la tarjeta abre o cierra la lista de exámenes que incluye (app.js). */
+  /* Celular: la tarjeta no agrega (es fácil tocarla sin querer al deslizar); solo el botón «Agregar». */
   @media (max-width: 719px), (pointer: coarse) {
     .patient .item .side .btn::after {
       content: none;
@@ -157,9 +156,6 @@
     }
     .patient .item:hover .side .btn-soft {
       border-color: transparent;
-    }
-    .item.perfil {
-      cursor: pointer;
     }
     /* Buscando: se esconde todo lo que está arriba del buscador (cabecera, tasa y aviso) */
     body.buscando header.top,
@@ -206,12 +202,6 @@
     }
     .patient .item .side .badge.incluido {
       max-width: 42vw;
-    }
-    .patient .item details {
-      margin-right: 4px;
-    }
-    .patient .item summary {
-      min-height: 44px;
     }
 
     /* Nada más chico que 44 px para el dedo */
@@ -396,18 +386,21 @@
     color: var(--ink-2);
     font-weight: 600;
   }
-  /* «Todas» sin búsqueda: título de cada categoría sobre sus exámenes */
-  #lista .grupo {
-    margin: 18px 2px 8px;
-    font-family: var(--font-body);
+  /* Perfil: sus exámenes siempre a la vista, debajo de una línea gris */
+  .item .incluye {
+    position: relative;
+    z-index: 1;
+    grid-column: 1 / -1;
+    margin: 2px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-2);
     font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--ink-3);
+    line-height: 1.45;
+    color: var(--ink-2);
   }
-  #lista .grupo:first-child {
-    margin-top: 4px;
+  .item .incluye b {
+    font-weight: 600;
+    color: var(--ink);
   }
   /* Presupuesto generado: solo «Nuevo presupuesto», a la izquierda */
   .ok-head {

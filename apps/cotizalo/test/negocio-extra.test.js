@@ -305,3 +305,35 @@ test("otros nombres (alias) de un examen: se limpian, salen en el catálogo púb
   await admin(`/examenes/${ex.id}`, { method: "PUT", body: { alias: "  " } });
   assert.equal((await admin("/catalogo")).json.examenes.find((e) => e.id === ex.id).alias, null);
 });
+
+test("el catálogo del paciente sale ordenado por lo más pedido en los últimos 90 días", async () => {
+  const antes = (await publico("/catalogo")).json;
+  // El último examen y el último perfil de la lista pasan a ser los más pedidos
+  const ex = antes.examenes.at(-1);
+  const pf = antes.perfiles.at(-1);
+  // Un presupuesto real y luego 40 copias de su línea (la API limita los presupuestos por minuto)
+  const uno = await publico("/presupuesto", {
+    method: "POST",
+    body: { items: [{ tipo: "examen", id: ex.id }] },
+  });
+  assert.equal(uno.status, 200, uno.texto);
+  const fila = await D1.prepare("SELECT * FROM presupuesto_items WHERE ref_id = ? LIMIT 1")
+    .bind(ex.id).first();
+  for (let i = 0; i < 40; i++) {
+    await D1.prepare(
+      "INSERT INTO presupuesto_items (id, presupuesto_id, negocio_id, dia, tipo, ref_id, nombre, precio_cent) VALUES (?,?,?,?,?,?,?,?)",
+    ).bind(`copia-${i}`, fila.presupuesto_id, fila.negocio_id, fila.dia, "examen", ex.id, fila.nombre, 0)
+      .run();
+  }
+  // Otro presupuesto (con el perfil) borra el caché y recalcula el orden
+  const r = await publico("/presupuesto", {
+    method: "POST",
+    body: { items: [{ tipo: "perfil", id: pf.id }] },
+  });
+  assert.equal(r.status, 200, r.texto);
+  const despues = (await publico("/catalogo")).json;
+  assert.equal(despues.examenes[0].id, ex.id, "el más pedido va primero");
+  assert.ok(despues.examenes[0].pedidos >= 40);
+  assert.ok(despues.perfiles[0].pedidos >= 1);
+  assert.equal(despues.examenes.length, antes.examenes.length, "no se pierde ninguno");
+});

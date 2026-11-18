@@ -417,8 +417,8 @@ const metaTarjeta = (x) =>
     }</div>`
     : "";
 
-// Tarjeta sencilla: nombre, precio y botón; debajo, solo promoción e indicaciones. La categoría va como
-// título de grupo en «Todas» y la descripción queda para el PDF.
+// Tarjeta sencilla: nombre, precio y botón; debajo, solo promoción e indicaciones. Sin categoría ni
+// descripción (la descripción queda para el PDF).
 function cardExamen(e) {
   const sel = S.ex.includes(e.id);
   const cub = !sel && cubiertoPor(e.id);
@@ -461,22 +461,10 @@ function cardPerfil(p) {
   return `<article class="item perfil ${sel ? "sel" : ""}">
     <div><h3>${esc(p.nombre)}</h3>${metaTarjeta(p)}</div>
     <div class="side">${precioConPromo(p)}${botonAgregar("pf", p, sel)}</div>
-    <details><summary>Ver ${n === 1 ? "1 examen incluido" : `${n} exámenes incluidos`}</summary><ul>${
-    [...info.ids].map((id) => `<li>${esc(p.examenes.find((m) => m.id === id)?.nombre)}</li>`).join(
-      "",
-    )
-  }</ul></details>
+    <p class="incluye"><b>${n === 1 ? "Incluye 1 examen" : `Incluye ${n} exámenes`}:</b> ${
+    [...info.ids].map((id) => esc(p.examenes.find((m) => m.id === id)?.nombre)).join(", ")
+  }</p>
   </article>`;
-}
-
-/** «Todas» sin búsqueda: los exámenes van bajo el título de su categoría, en el orden de las categorías. */
-function porCategoria(ex) {
-  return S.cat.categorias.map((c) => {
-    const delGrupo = ex.filter((e) => e.categoria_id === c.id);
-    return delGrupo.length
-      ? `<h3 class="grupo">${esc(c.nombre)}</h3>${delGrupo.map(cardExamen).join("")}`
-      : "";
-  }).join("");
 }
 
 function renderLista() {
@@ -506,10 +494,8 @@ function renderLista() {
         : ""
     }</div>`;
   } else {
-    const agrupar = S.tab === "examenes" && !S.catId && !palabrasDe(S.q).length;
-    html = agrupar
-      ? porCategoria(lista)
-      : lista.map(S.tab === "examenes" ? cardExamen : cardPerfil).join("");
+    // El catálogo llega ordenado por lo más pedido; al buscar, primero lo que coincide tal cual
+    html = lista.map(S.tab === "examenes" ? cardExamen : cardPerfil).join("");
     // Si la categoría elegida tiene límite, se avisa antes de que el paciente choque con él
     const cat = S.tab === "examenes" && S.catId && S.cat.categorias.find((c) => c.id === S.catId);
     // Categorías con exámenes repetibles (p. ej. Patología): aviso del negocio o uno general, sin decir el máximo.
@@ -1127,21 +1113,19 @@ document.addEventListener("focusout", (e) => {
 
 // Ratón: evita que el buscador pierda el foco al tocar un botón de la lista (en el teléfono, el teclado no
 // llega a cerrarse). En pantallas táctiles se recuerda si estaba abierto para devolverle el foco en el clic.
+// Lo mismo con las categorías, las pestañas y la ×: mientras se busca, el teclado y la vista sin cabecera
+// siguen hasta que la persona cierre el teclado.
+const NO_SUELTAN_BUSCADOR = new Set([...ACCIONES_LISTA, "limpiar", "cat", "tab"]);
+const mantieneBuscador = (e) => {
+  const b = e.target.closest("[data-act]");
+  return document.activeElement?.id === "q" && b && NO_SUELTAN_BUSCADOR.has(b.dataset.act);
+};
 document.addEventListener("pointerdown", (e) => {
   buscandoAlTocar = document.activeElement?.id === "q";
-  const b = e.target.closest("[data-act]");
-  if (buscandoAlTocar && b && (ACCIONES_LISTA.has(b.dataset.act) || b.dataset.act === "limpiar")) {
-    e.preventDefault();
-  }
+  if (mantieneBuscador(e)) e.preventDefault();
 });
 document.addEventListener("mousedown", (e) => {
-  const b = e.target.closest("[data-act]");
-  if (
-    document.activeElement?.id === "q" && b &&
-    (ACCIONES_LISTA.has(b.dataset.act) || b.dataset.act === "limpiar")
-  ) {
-    e.preventDefault();
-  }
+  if (mantieneBuscador(e)) e.preventDefault();
 });
 
 document.addEventListener("keydown", (e) => {
@@ -1165,24 +1149,20 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ───────────── Eventos ─────────────
-// En el celular la tarjeta no agrega (solo el botón): en un perfil, tocarla abre o cierra sus exámenes
+// Celular y pantallas táctiles (aquí la tarjeta no agrega: solo su botón)
 const MOVIL = matchMedia("(max-width: 719px), (pointer: coarse)");
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-act]");
-  if (!b) {
-    const tarjeta = e.target.closest("article.item.perfil");
-    if (tarjeta && MOVIL.matches && !e.target.closest("details, a, button, input")) {
-      const det = tarjeta.querySelector("details");
-      if (det) det.open = !det.open;
-    }
-    return;
-  }
+  if (!b) return;
   const { act, id } = b.dataset;
   const conBuscador = buscandoAlTocar || document.activeElement?.id === "q";
   buscandoAlTocar = false;
   if (conBuscador && ACCIONES_LISTA.has(act)) {
     const antes = elegido(act === "pf" ? "pf" : "ex", id);
     queueMicrotask(() => seguirBuscando(act === "pf" ? "pf" : "ex", id, antes));
+  } else if (conBuscador && (act === "cat" || act === "tab")) {
+    // Por si el teléfono le quitó el foco al tocar: vuelve al buscador sin cerrar el teclado
+    queueMicrotask(() => $("#q")?.focus({ preventScroll: true }));
   }
   switch (act) {
     case "limpiar": {

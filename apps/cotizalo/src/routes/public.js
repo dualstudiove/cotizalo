@@ -2,7 +2,7 @@
 import { cuotaDiaria, db, limite } from "@dualstudio/comun/servidor";
 import { refrescarSiHaceFalta, tasaGlobal } from "../bcv.js";
 import { crearPresupuesto, esOrigenOtro, getConfig, resolverTasa } from "../negocio.js";
-import { hoy, HttpError, nowIso, parteFecha, uuid } from "../util.js";
+import { hoy, HttpError, nowIso, parteFecha, sumarDias, uuid } from "../util.js";
 import { colorSeguro, temaDe } from "../paleta.js";
 import { aplicarPromocion, promocionesDelDia } from "../promociones.js";
 
@@ -10,6 +10,27 @@ import { aplicarPromocion, promocionesDelDia } from "../promociones.js";
 // de estas rutas sin sesión antes de que agote la cuota gratuita de la cuenta de Cloudflare, que es de todas las apps.
 export const TOPE_VISITAS_DIA = 5000;
 export const TOPE_PRESUPUESTOS_DIA = 1000;
+
+// «Más pedidos»: cuántas veces se eligió cada examen o perfil en los presupuestos de los últimos 90 días. El
+// catálogo del paciente sale ordenado así. Se guarda 10 minutos por negocio en cada instancia del Worker.
+export const DIAS_POPULARIDAD = 90;
+const popularidadCache = new Map();
+async function popularidad(negocioId) {
+  const c = popularidadCache.get(negocioId);
+  if (c && Date.now() - c.t < 10 * 60_000) return c.m;
+  const filas = await db.all(
+    `SELECT ref_id, COUNT(*) AS n FROM presupuesto_items
+      WHERE negocio_id = ? AND dia >= ? AND ref_id IS NOT NULL GROUP BY ref_id`,
+    [negocioId, sumarDias(hoy(), -DIAS_POPULARIDAD)],
+  );
+  const m = new Map(filas.map((f) => [f.ref_id, f.n]));
+  popularidadCache.set(negocioId, { t: Date.now(), m });
+  return m;
+}
+/** Más pedidos primero; a igual cantidad, por nombre (el orden en que llegan). */
+const porPopularidad = (lista, pop) =>
+  lista.map((x) => ({ ...x, pedidos: pop.get(x.id) || 0 }))
+    .sort((a, b) => b.pedidos - a.pedidos);
 
 export function registrarPublicas(r) {
   r.add("GET", "/api/publico/config", { tenant: true }, async ({ negocio }) => {
@@ -85,12 +106,13 @@ export function registrarPublicas(r) {
     }
     // Promociones de hoy: precio_cent ya trae el descuento; precio_lista_cent es el de antes.
     const promos = await promocionesDelDia(negocio.id, hoy());
+    const pop = await popularidad(negocio.id);
     return {
       categorias,
-      examenes: examenes.map((e) =>
+      examenes: porPopularidad(examenes, pop).map((e) =>
         aplicarPromocion(e, { tipo: "examen", id: e.id, categoria_id: e.categoria_id }, promos)
       ),
-      perfiles: perfiles
+      perfiles: porPopularidad(perfiles, pop)
         .map((p) =>
           aplicarPromocion({ ...p, examenes: porPerfil.get(p.id) || [] }, {
             tipo: "perfil",
@@ -135,6 +157,8 @@ export function registrarPublicas(r) {
       TOPE_PRESUPUESTOS_DIA,
       "Hoy ya se generaron demasiados presupuestos en este negocio. Intenta de nuevo mañana o comunícate con el laboratorio.",
     );
-    return crearPresupuesto(negocio, body);
+    const res = await crearPresupuesto(negocio, body);
+    popularidadCache.delete(negocio.id); // el orden de «más pedidos» se recalcula en la próxima carga
+    return res;
   });
 }
