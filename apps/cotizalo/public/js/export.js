@@ -819,7 +819,8 @@ export async function toPdfBlob(d) {
 const STORY_W = 1080;
 const STORY_H = 1920;
 const F_TEXTO = '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
-const F_TITULO = '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+const F_TITULO =
+  '"Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
 
 /** Espera las fuentes de la página (si no cargan, el lienzo usa las del sistema). */
 async function fuentesListas() {
@@ -945,7 +946,13 @@ function dibujarStory(d, g, H, dy = 0) {
     const promo = it.promo
       ? partir(textoPromo(it.promo), fPromo, xd - xi - medir(antes, fAntes) - 28)
       : [];
-    return { precio, lineas, promo, antes, alto: lineas.length * 46 + promo.length * 38 + (promo.length ? 6 : 0) };
+    return {
+      precio,
+      lineas,
+      promo,
+      antes,
+      alto: lineas.length * 46 + promo.length * 38 + (promo.length ? 6 : 0),
+    };
   });
   const sep = 40;
   const altoTarjeta = pad * 2 + filas.reduce((s, f) => s + f.alto, 0) +

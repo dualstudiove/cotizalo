@@ -326,7 +326,8 @@ async function pExamenes(page) {
   const c = await catalogo(true);
   const lista = () =>
     c.examenes.filter((e) =>
-      (!F.cat || e.categoria_id === F.cat) && (!F.q || norm(`${e.nombre} ${e.alias || ""}`).includes(norm(F.q)))
+      (!F.cat || e.categoria_id === F.cat) &&
+      (!F.q || norm(`${e.nombre} ${e.alias || ""}`).includes(norm(F.q)))
     );
   page.innerHTML = `
     <div class="page-head"><h1>Exámenes <span class="muted" style="font-size:1rem;font-weight:500">(${c.examenes.length})</span></h1>

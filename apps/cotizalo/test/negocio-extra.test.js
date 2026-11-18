@@ -322,7 +322,16 @@ test("el catálogo del paciente sale ordenado por lo más pedido en los últimos
   for (let i = 0; i < 40; i++) {
     await D1.prepare(
       "INSERT INTO presupuesto_items (id, presupuesto_id, negocio_id, dia, tipo, ref_id, nombre, precio_cent) VALUES (?,?,?,?,?,?,?,?)",
-    ).bind(`copia-${i}`, fila.presupuesto_id, fila.negocio_id, fila.dia, "examen", ex.id, fila.nombre, 0)
+    ).bind(
+      `copia-${i}`,
+      fila.presupuesto_id,
+      fila.negocio_id,
+      fila.dia,
+      "examen",
+      ex.id,
+      fila.nombre,
+      0,
+    )
       .run();
   }
   // Otro presupuesto (con el perfil) borra el caché y recalcula el orden

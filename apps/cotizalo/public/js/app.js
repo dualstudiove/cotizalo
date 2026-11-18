@@ -13,10 +13,11 @@ import {
   fmtTasa,
   icon,
   modal,
-  norm,
   ref,
   toast,
 } from "./common.js";
+import { aliasDe, aliasEncontrado, buscar, palabrasBuscadas, pidePerfiles } from "./busqueda.js";
+import { enLista, frasePromo } from "./frase-promo.js";
 import {
   buildDoc,
   compartir,
@@ -43,10 +44,18 @@ const S = {
   origen: "",
   res: null,
   firma: null,
+  tabAuto: false, // la pestaña Perfiles la eligió la búsqueda («perfil…»), no la persona
 };
 let exMap = new Map();
 let pfMap = new Map();
 let K = "pe:?";
+// Celular y pantallas táctiles: la tarjeta no agrega (solo su botón) y al buscar se esconde lo de arriba
+const MOVIL = matchMedia("(max-width: 719px), (pointer: coarse)");
+/** Fecha corta «30/11» (con año solo si no es el actual). */
+const diaMes = (dia) => {
+  const f = fmtFecha(dia);
+  return dia.slice(0, 4) === String(new Date().getFullYear()) ? f.slice(0, 5) : f;
+};
 
 // ───────────── Datos derivados ─────────────
 // Cantidad de cada examen (S.cant solo guarda las mayores que 1). Cuántas veces se puede pedir
@@ -241,55 +250,14 @@ function renderRate() {
 }
 
 // ───────────── Anuncio de promociones ─────────────
-/** «a», «a y b», «a, b y c» */
-const enLista = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs.at(-1)}`);
-
-/** Primera letra en mayúscula. */
-const capital = (t) => (t ? t[0].toLocaleUpperCase("es") + t.slice(1) : t);
-/** Nombre de un perfil sin la palabra «perfil» al inicio: «Perfil básico» → «Básico», «Perfil de tiroides» → «Tiroides». */
-const sinPerfil = (n) => capital(n.replace(/^perfil(\s+de)?\s+/i, "") || n);
-
-/**
- * Lo que abarca una promoción, en una frase que termina en punto (devuelve { pct: "−20%", texto: "en …." }).
- * Orden: categorías, perfiles, exámenes.
- *  · exámenes sueltos: «−20 % en 5 exámenes.» (uno: «en el examen: Glicemia.»)
- *  · categorías: «−20 % en todos los exámenes de Hormonas, Coagulación y Patología.»
- *  · perfiles: «−20 % en el perfil: Básico.» / «en los perfiles: Básico y Chequeo ejecutivo.»
- *  · mixto: «−20 % en todos los exámenes de Hormonas, el perfil Básico y 2 exámenes más.»
- *    (sin categorías y con un solo examen, se nombra: «en el perfil Lipídico y el examen Glicemia.»)
- * Solo cuenta lo que el paciente puede ver (exámenes, categorías y perfiles publicados).
- */
-function frasePromo(p) {
-  const cats = p.categorias.map((id) => S.cat.categorias.find((c) => c.id === id)).filter(Boolean);
-  const enCat = new Set(cats.map((c) => c.id));
-  const exs = p.examenes.map((id) => exMap.get(id)).filter((e) => e && !enCat.has(e.categoria_id));
-  const pfs = p.perfiles.map((id) => pfMap.get(id)).filter(Boolean);
-  const nombresCat = enLista(cats.map((c) => capital(c.nombre)));
-  const nombresPf = enLista(pfs.map((x) => sinPerfil(x.nombre)));
-  const solo = [cats.length, exs.length, pfs.length].filter(Boolean).length === 1;
-  let resto;
-  if (solo && cats.length) resto = `todos los exámenes de ${nombresCat}`;
-  else if (solo && pfs.length) {
-    resto = pfs.length === 1 ? `el perfil: ${nombresPf}` : `los perfiles: ${nombresPf}`;
-  } else if (solo && exs.length) {
-    resto = exs.length === 1 ? `el examen: ${capital(exs[0].nombre)}` : `${exs.length} exámenes`;
-  } else {
-    const partes = [];
-    if (cats.length) partes.push(`todos los exámenes de ${nombresCat}`);
-    if (pfs.length) partes.push(pfs.length === 1 ? `el perfil ${nombresPf}` : `los perfiles ${nombresPf}`);
-    if (exs.length === 1 && !cats.length) partes.push(`el examen ${capital(exs[0].nombre)}`);
-    else if (exs.length) {
-      partes.push(`${exs.length} ${exs.length === 1 ? "examen" : "exámenes"}${cats.length ? " más" : ""}`);
-    }
-    resto = enLista(partes);
-  }
-  // El porcentaje va aparte (en negrita, todo pegado: «−20%»); el resto, en texto normal
-  return resto ? { pct: `−${p.porcentaje}%`, texto: `en ${resto}.` } : null;
-}
-
 /** Promociones de hoy con algo visible para el paciente. */
 const promosVisibles = () =>
-  (S.cat.promociones || []).map((p) => ({ ...p, frase: frasePromo(p) })).filter((p) => p.frase);
+  (S.cat.promociones || [])
+    .map((p) => ({
+      ...p,
+      frase: frasePromo(p, { categorias: S.cat.categorias, examenes: exMap, perfiles: pfMap }),
+    }))
+    .filter((p) => p.frase);
 const hayPromos = () => S.cat.examenes.some((e) => e.promo) || S.cat.perfiles.some((p) => p.promo);
 
 // Grande o compacto: la primera vez que la persona ve unas promociones, el anuncio sale completo; desde la
@@ -299,7 +267,11 @@ function decidirTamanoPromo(promos) {
   if (promoGrande !== null) return;
   const vistas = new Set(leer(localStorage, "promosVistas") || []);
   promoGrande = promos.some((p) => !vistas.has(p.id));
-  guardar(localStorage, "promosVistas", [...new Set([...vistas, ...promos.map((p) => p.id)])].slice(-50));
+  guardar(
+    localStorage,
+    "promosVistas",
+    [...new Set([...vistas, ...promos.map((p) => p.id)])].slice(-50),
+  );
 }
 
 /**
@@ -324,7 +296,7 @@ function anuncioPromos(promos) {
     <div class="txt">${
     promos.map((p) =>
       `<div class="una"><b>${esc(p.nombre)}</b><span>${frase(p)}</span><small>Hasta el ${
-        fechaCorta(p.hasta)
+        diaMes(p.hasta)
       }</small></div>`
     ).join("")
   }
@@ -379,80 +351,10 @@ function mostrarChipElegido() {
 }
 
 // ───────────── Búsqueda ─────────────
-// Cada palabra escrita tiene que aparecer en el nombre (o la descripción). Si no aparece tal cual, se acepta
-// con una letra equivocada, de más o de menos (dos en palabras largas): «hemotologia» encuentra «Hematología».
-// Lo que coincide tal cual va primero. La palabra «perfil» lleva a la pestaña Perfiles y no se busca.
-const ES_PERFIL = /^perfil(es)?$/;
-const palabrasDe = (q) => norm(q).split(/[^a-z0-9ñ]+/).filter(Boolean);
-
-/** Distancia de edición (con letras intercambiadas) entre a y b; corta en cuanto pasa de max. */
-function distancia(a, b, max) {
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  let ant2 = null;
-  let ant = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const fila = [i];
-    let menor = i;
-    for (let j = 1; j <= b.length; j++) {
-      const c = a[i - 1] === b[j - 1] ? 0 : 1;
-      let v = Math.min(ant[j] + 1, fila[j - 1] + 1, ant[j - 1] + c);
-      if (ant2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-        v = Math.min(v, ant2[j - 2] + 1);
-      }
-      fila.push(v);
-      menor = Math.min(menor, v);
-    }
-    if (menor > max) return max + 1;
-    ant2 = ant;
-    ant = fila;
-  }
-  return ant[b.length];
-}
-
-/**
- * 2 = todas las palabras aparecen tal cual · 1 = alguna con un error de tipeo · 0 = no coincide.
- * Una palabra a medio escribir vale: «hemotol» se compara con el comienzo de «hematologia».
- */
-function coincide(palabras, texto) {
-  if (!palabras.length) return 2;
-  const t = norm(texto);
-  const enTexto = t.split(/[^a-z0-9ñ]+/).filter(Boolean);
-  let nota = 2;
-  for (const p of palabras) {
-    if (t.includes(p)) continue;
-    const max = p.length >= 8 ? 2 : p.length >= 4 ? 1 : 0;
-    const casi = max && enTexto.some((w) =>
-      distancia(p, w, max) <= max || distancia(p, w.slice(0, p.length), max) <= max
-    );
-    if (!casi) return 0;
-    nota = 1;
-  }
-  return nota;
-}
-
-/** Otros nombres de un examen (los pone el administrador): «glucemia, glucosa» → ["glucemia", "glucosa"]. */
-const aliasDe = (e) => String(e?.alias || "").split(",").map((x) => x.trim()).filter(Boolean);
-
-/** El otro nombre por el que se encontró un examen, si coincide mejor que su nombre («glucemia» → Glicemia). */
-function aliasEncontrado(e) {
-  const palabras = palabrasDe(S.q).filter((p) => !ES_PERFIL.test(p));
-  if (!palabras.length) return null;
-  const porNombre = coincide(palabras, `${e.nombre} ${e.descripcion || ""}`);
-  return aliasDe(e).find((a) => coincide(palabras, a) > porNombre) || null;
-}
-
-/** Filtra y ordena: primero lo que coincide tal cual, después lo que tiene un error de tipeo. */
-function buscar(lista, palabras, textos) {
-  if (!palabras.length) return lista;
-  return lista.map((x, i) => ({ x, i, n: Math.max(...textos(x).map((t) => coincide(palabras, t))) }))
-    .filter((r) => r.n > 0)
-    .sort((a, b) => b.n - a.n || a.i - b.i)
-    .map((r) => r.x);
-}
-
+// La lógica (tolerancia a errores, otros nombres, «perfil») está en busqueda.js; aquí, el estado de la pantalla.
 /** «perfil…» en la búsqueda: pasa a la pestaña Perfiles (y vuelve a Exámenes si se borra y fue automático). */
 function pestanaPorBusqueda() {
-  const pide = palabrasDe(S.q).some((p) => ES_PERFIL.test(p));
+  const pide = pidePerfiles(S.q);
   if (pide && S.tab !== "perfiles") {
     S.tab = "perfiles";
     S.tabAuto = true;
@@ -463,7 +365,7 @@ function pestanaPorBusqueda() {
 }
 
 function filtrar() {
-  const palabras = palabrasDe(S.q).filter((p) => !ES_PERFIL.test(p));
+  const palabras = palabrasBuscadas(S.q);
   const ex = buscar(
     S.cat.examenes.filter((e) =>
       !S.catId || (S.catId === "promo" ? !!e.promo : e.categoria_id === S.catId)
@@ -494,16 +396,10 @@ function precioConPromo(x, sufijo = "") {
 /** Chip de promoción: solo el descuento («−20 %»). El nombre y la fecha van en el anuncio de arriba. */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
-  return `<span class="promo-tag" title="${esc(x.promo.nombre || "Promoción")}">−${
-    x.promo.porcentaje
-  } %</span>`;
+  return `<span class="promo-tag" title="${
+    esc(x.promo.nombre || "Promoción")
+  }">−${x.promo.porcentaje} %</span>`;
 }
-
-/** Fecha corta «30/11» (con año solo si no es el actual). */
-const fechaCorta = (dia) => {
-  const f = fmtFecha(dia);
-  return dia.slice(0, 4) === String(new Date().getFullYear()) ? f.slice(0, 5) : f;
-};
 
 /**
  * Botón de agregar de una tarjeta. En el celular es un círculo grande solo con el ícono (+ / ✓) y el texto
@@ -536,7 +432,7 @@ function cardExamen(e) {
   const sel = S.ex.includes(e.id);
   const cub = !sel && cubiertoPor(e.id);
   const max = maxPor(e);
-  const tambien = aliasEncontrado(e);
+  const tambien = aliasEncontrado(e, palabrasBuscadas(S.q));
   const cabeza = `<h3>${esc(e.nombre)}</h3>${
     tambien ? `<p class="alias">También llamado <b>${esc(tambien)}</b></p>` : ""
   }${e.descripcion ? `<p class="desc">${esc(e.descripcion)}</p>` : ""}`;
@@ -794,7 +690,9 @@ function renderOk() {
     <div class="res-head ok-head"><button type="button" class="btn btn-soft" data-act="nuevo">${
     icon("plus")
   } Nuevo presupuesto</button></div>
-    <ol class="pasos" aria-label="Pasos"><li class="hecho"><i>${icon("check")}</i>Elige</li><li class="hecho"><i>${
+    <ol class="pasos" aria-label="Pasos"><li class="hecho"><i>${
+    icon("check")
+  }</i>Elige</li><li class="hecho"><i>${
     icon("check")
   }</i>Revisa</li><li class="hecho" aria-current="step"><i>${icon("check")}</i>Genera</li></ol>
     <div class="notice ok">${icon("check")}<div>Presupuesto <b>${
@@ -1180,7 +1078,9 @@ function seguirBuscando(act, id, antes) {
   if (!x || ahora === antes) return;
   pintarBuscador(
     ahora
-      ? `${icon("check")}<span><b>${esc(x.nombre)}</b> agregado · ${nItems()} en tu presupuesto. Escribe el siguiente.</span>`
+      ? `${icon("check")}<span><b>${
+        esc(x.nombre)
+      }</b> agregado · ${nItems()} en tu presupuesto. Escribe el siguiente.</span>`
       : `<span>Quitaste <b>${esc(x.nombre)}</b>.</span>`,
   );
 }
@@ -1285,8 +1185,6 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ───────────── Eventos ─────────────
-// Celular y pantallas táctiles (aquí la tarjeta no agrega: solo su botón)
-const MOVIL = matchMedia("(max-width: 719px), (pointer: coarse)");
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-act]");
   if (!b) return;
@@ -1315,7 +1213,9 @@ document.addEventListener("click", (e) => {
     case "plegarpromo":
       promoGrande = act === "abrirpromo";
       renderAviso();
-      $(promoGrande ? ".promo-anuncio .plegar" : ".promo-anuncio.compacta")?.focus({ preventScroll: true });
+      $(promoGrande ? ".promo-anuncio .plegar" : ".promo-anuncio.compacta")?.focus({
+        preventScroll: true,
+      });
       break;
     case "verpromo": {
       // Ya lo vio: el anuncio pasa a ocupar una sola línea

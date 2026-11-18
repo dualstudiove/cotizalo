@@ -32,6 +32,7 @@ Después, cambia su línea en `apps/central/apps.json`.
 | `src/env.js`, `util.js`                         | Variables y utilidades propias, sobre las comunes.                                                                                          |
 | `src/seed.js`, `ejemplo.js`, `datos-ejemplo.js` | Datos iniciales y de ejemplo.                                                                                                               |
 | `public/`                                       | Páginas, `css/tema.css` (tokens propios), `css/app.css` (componentes propios) y `js/`.                                                      |
+| `public/js/busqueda.js`, `frase-promo.js`       | Lógica pura del paciente, sin dependencias (se prueba en Node): búsqueda tolerante a errores y frase del anuncio de promociones.            |
 | `test/`                                         | Pruebas contra un D1 simulado sobre `node:sqlite`.                                                                                          |
 
 ## Probar en local
