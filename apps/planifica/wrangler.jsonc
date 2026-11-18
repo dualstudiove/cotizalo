@@ -44,7 +44,11 @@
     // Si la app se muda a su propio dominio, pon "" y cambia "routes" y "run_worker_first".
     "BASE_PATH": "/planifica",
     "ENVIRONMENT": "production",
-    "TZ_OFFSET_MIN": "-240"
+    "TZ_OFFSET_MIN": "-240",
+    // App de Meta «Planifica Dual Studio» y su configuración de inicio de sesión unificado (no son secretos).
+    // La clave secreta va aparte: secreto META_APP_SECRET en Cloudflare.
+    "META_APP_ID": "1669762864945097",
+    "META_CONFIG_ID": "2309244589644726"
   },
 
   // dualstudio.app/planifica y todo lo que cuelga de ahí. El resto de dualstudio.app lo atiende la central.
@@ -60,7 +64,13 @@
 
   // Sitio de pruebas (Cloudflare «Previews»): cada cambio en una rama que no es master se publica aparte.
   "previews": {
-    "vars": { "BASE_PATH": "/planifica", "ENVIRONMENT": "production", "TZ_OFFSET_MIN": "-240" },
+    "vars": {
+      "BASE_PATH": "/planifica",
+      "ENVIRONMENT": "production",
+      "TZ_OFFSET_MIN": "-240",
+      "META_APP_ID": "1669762864945097",
+      "META_CONFIG_ID": "2309244589644726"
+    },
     // Base de datos APARTE para las pruebas:  npx wrangler d1 create planifica-pruebas
     "d1_databases": [
       {

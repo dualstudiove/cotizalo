@@ -40,22 +40,27 @@ export const conexionDe = (clienteId, red = "ig") =>
 
 // ── Conectar / desconectar ──
 
-/** Comprueba el token con Instagram y guarda la conexión del cliente (opción A: token pegado a mano). */
-export async function conectarInstagram({ clienteId, token, usuarioId, origen = "token" }) {
+/**
+ * Comprueba la cuenta con Instagram y guarda la conexión del cliente.
+ *  · origen «token»: token pegado a mano (inicio de sesión de Instagram); dura 60 días y se renueva solo.
+ *  · origen «meta»: «Conectar con Meta» (inicio de sesión unificado); token de usuario del sistema que no vence,
+ *    y la cuenta de Instagram elegida (cuentaId).
+ */
+export async function conectarInstagram({ clienteId, token, usuarioId, origen = "token", cuentaId = null }) {
   token = String(token || "").trim();
   if (!/^[A-Za-z0-9._|-]{20,1024}$/.test(token)) {
     throw new HttpError(400, "Ese token no parece válido. Cópialo completo desde la app de Meta.");
   }
   let per;
   try {
-    per = await ig.perfil(ig.presupuesto(2), token);
+    per = await ig.perfil(ig.usarConexion(ig.presupuesto(2), origen), token, cuentaId);
   } catch (e) {
     if (e instanceof ig.ErrorRed) {
-      throw new HttpError(400, e.token ? "Instagram no aceptó ese token. Genera uno nuevo y vuelve a pegarlo." : e.message);
+      throw new HttpError(400, e.token ? "Meta no aceptó la conexión. Vuelve a conectar la cuenta." : e.message);
     }
     throw e;
   }
-  if (!per.id) throw new HttpError(400, "Instagram no devolvió la cuenta de ese token.");
+  if (!per.id) throw new HttpError(400, "Instagram no devolvió la cuenta.");
   const antes = await conexionDe(clienteId, "ig");
   const ahora = Date.now();
   await db.run(
@@ -66,7 +71,17 @@ export async function conectarInstagram({ clienteId, token, usuarioId, origen = 
        token = excluded.token, token_creado = excluded.token_creado, token_vence = excluded.token_vence,
        origen = excluded.origen, estado = 'ok', error = NULL, cuenta_dia = NULL, completo_dia = NULL,
        conectado_en = excluded.conectado_en, conectado_por = excluded.conectado_por`,
-    [clienteId, per.id, per.usuario, await cifrar(token), ahora, ahora + 60 * DIA, origen, ahora, usuarioId || null],
+    [
+      clienteId,
+      per.id,
+      per.usuario,
+      await cifrar(token),
+      ahora,
+      origen === "meta" ? null : ahora + 60 * DIA,
+      origen,
+      ahora,
+      usuarioId || null,
+    ],
   );
   // Si cambió la cuenta, los links ya vinculados se vuelven a buscar en la nueva.
   if (antes && antes.cuenta_id !== per.id) {
@@ -167,8 +182,9 @@ const errorPost = (post, mensaje) =>
 async function tokenVigente(p, con) {
   const token = await descifrar(con.token);
   if (!token) {
-    throw new ig.ErrorRed("No se pudo leer el token guardado: vuelve a pegarlo.", { token: true });
+    throw new ig.ErrorRed("No se pudo leer el token guardado: vuelve a conectar la cuenta.", { token: true });
   }
+  if (con.origen === "meta") return token; // el token de usuario del sistema no vence
   const ahora = Date.now();
   if (con.token_vence && con.token_vence - ahora > RENOVAR_ANTES) return token;
   if (con.token_creado && ahora - con.token_creado < DIA) return token;
@@ -184,7 +200,7 @@ async function tokenVigente(p, con) {
 /** Seguidores de hoy, cifras de ayer y, una vez por semana, a qué horas está conectada la audiencia. */
 async function pasoCuenta(p, con, token) {
   const dia = hoy();
-  const per = await ig.perfil(p, token);
+  const per = await ig.perfil(p, token, con.cuenta_id);
   if (per.usuario && per.usuario !== con.usuario) {
     await db.run("UPDATE redes_conexiones SET usuario = ? WHERE cliente_id = ? AND red = ?", [
       per.usuario,
@@ -270,6 +286,7 @@ async function pasoPost(p, token, post) {
  * Lanza SinPresupuesto si se acabaron las llamadas: lo que faltó queda para la próxima ejecución.
  */
 export async function sincronizar(con, p, { forzar = false, soloPost = null } = {}) {
+  ig.usarConexion(p, con.origen);
   const dia = hoy();
   try {
     const token = await tokenVigente(p, con);

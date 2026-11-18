@@ -27,6 +27,7 @@ export const RESERVADOS = new Set([
   "favicon.ico",
   "cuenta",
   "super",
+  "redes",
 ]);
 
 const COLS = "id, email, nombre, password_hash, es_admin, activo, sesion_version";

@@ -8,6 +8,7 @@ import { registrarRutas } from "./rutas.js";
 import { registrarAdmin } from "./admin.js";
 import { registrarRedes } from "./redes/rutas.js";
 import { registrarAds } from "./ads.js";
+import { registrarMeta, vueltaMeta } from "./redes/meta.js";
 import { tareaDiaria } from "./redes/sync.js";
 import { asegurarAdminDesdeSecretos, RESERVADOS } from "./sesion.js";
 
@@ -16,6 +17,7 @@ registrarRutas(router);
 registrarAdmin(router);
 registrarRedes(router);
 registrarAds(router);
+registrarMeta(router);
 
 export const { app, fetch, scheduled } = crearServidor({
   router,
@@ -34,6 +36,8 @@ export const { app, fetch, scheduled } = crearServidor({
   paginas(app, { asset, noEncontrada }) {
     app.get("/", (c) => asset(c, "/index.html"));
     app.get("/admin", (c) => asset(c, "/admin.html"));
+    // Vuelta de «Conectar con Meta» (ver redes/meta.js). Esta dirección se registra en la configuración de Meta.
+    app.get("/redes/meta/vuelta", (c) => vueltaMeta(c));
     // La parrilla de un cliente. Quién puede verla lo decide la API (sin sesión, la página lleva a iniciar sesión).
     const parrilla = (c) => {
       const url = new URL(c.req.url);

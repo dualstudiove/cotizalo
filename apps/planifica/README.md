@@ -53,7 +53,10 @@ Un cliente sin acceso responde como si no existiera, y ninguna consulta cruza cl
 
 Planifica trae las métricas de la cuenta de Instagram de cada cliente y las muestra en cada post, en la pestaña **Rendimiento** y en **Objetivos**.
 
-- **Conectar:** en Clientes y equipo → **Instagram**, un administrador pega el token de la cuenta (se genera en la app de Meta «Planifica Dual Studio», con la cuenta agregada como evaluadora). Se guarda cifrado y nunca sale del servidor. Planifica lo renueva sola cuando le quedan menos de 10 días.
+- **Conectar con Meta:** en Clientes y equipo → **Instagram → Conectar con Meta**. Lleva a Meta (app «Planifica Dual Studio», configuración de inicio de sesión unificado), donde se elige la cuenta de Instagram del cliente y su cuenta publicitaria; al volver, Planifica guarda el token de usuario del sistema (no vence) cifrado y lee todo de `graph.facebook.com` (`src/redes/meta.js`). Si se autorizan varias cuentas, pregunta cuál es la del cliente.
+  - Hace falta el secreto **`META_APP_SECRET`** (la clave secreta de la app de Meta) en Cloudflare, en producción y en las vistas previas. `META_APP_ID` y `META_CONFIG_ID` están en `wrangler.jsonc`.
+  - En la configuración de Meta se registra la dirección de vuelta: `https://dualstudio.app/planifica/redes/meta/vuelta` (y la de las vistas previas, con su dominio).
+  - Alternativa: **pegar un token** del inicio de sesión de Instagram (dura 60 días y Planifica lo renueva sola).
 - **Vincular cada post:** en el post, campo **Link en Instagram**. Al pegarlo se busca la publicación en la cuenta y se traen sus métricas al momento: alcance, reproducciones, interacciones, likes, comentarios, compartidos y guardados. La miniatura se guarda como imagen propia (WebP de 320 px) y cuenta dentro de los 50 MB del cliente.
 - **Cada mañana:** una tarea programada (`triggers` en `wrangler.jsonc`) corre cada 10 minutos entre las 6:00 y las 7:50 (hora de Venezuela). Guarda los seguidores del día, las cifras de la cuenta del día anterior, la audiencia por hora (una vez por semana) y las métricas de todos los posts vinculados. Cada ejecución hace como mucho 45 llamadas a Instagram (el plan gratuito permite 50) y deja lo que falte para la siguiente.
 - **Botón Actualizar:** en el post y en Rendimiento, una vez cada 15 minutos por cliente.

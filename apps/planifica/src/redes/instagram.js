@@ -18,13 +18,23 @@ export class ErrorRed extends Error {
 }
 export class SinPresupuesto extends Error {}
 
-/** Presupuesto de llamadas externas de una ejecución. */
-export const presupuesto = (n) => ({ n });
+/**
+ * Presupuesto de llamadas externas de una ejecución. Lleva también a qué API se habla:
+ *  · conexión «token» (inicio de sesión de Instagram): graph.instagram.com
+ *  · conexión «meta» (inicio de sesión unificado): graph.facebook.com, con el token de usuario del sistema
+ * Los nombres de campos y métricas son los mismos en las dos.
+ */
+export const presupuesto = (n) => ({ n, meta: false });
+export function usarConexion(p, origen) {
+  p.meta = origen === "meta";
+  return p;
+}
+const baseDe = (p) => (p.meta ? env.metaApiBase : env.igApiBase);
 
 async function pedir(p, ruta, params = {}) {
   if (p.n <= 0) throw new SinPresupuesto("Sin llamadas disponibles en esta ejecución.");
   p.n--;
-  const url = new URL(ruta.startsWith("http") ? ruta : `${env.igApiBase}/${VERSION}${ruta}`);
+  const url = new URL(ruta.startsWith("http") ? ruta : `${baseDe(p)}/${VERSION}${ruta}`);
   for (const [k, v] of Object.entries(params)) if (v !== undefined) url.searchParams.set(k, v);
   let res;
   try {
@@ -50,12 +60,11 @@ async function pedir(p, ruta, params = {}) {
   return j || {};
 }
 
-/** Perfil de la cuenta del token: { id, usuario, seguidores, publicaciones }. */
-export async function perfil(p, token) {
-  const j = await pedir(p, "/me", {
-    fields: "user_id,username,followers_count,media_count",
-    access_token: token,
-  });
+/** Perfil de la cuenta: { id, usuario, seguidores, publicaciones }. Con «meta», la cuenta se pide por su id. */
+export async function perfil(p, token, cuentaId) {
+  const j = p.meta
+    ? await pedir(p, `/${cuentaId}`, { fields: "id,username,followers_count,media_count", access_token: token })
+    : await pedir(p, "/me", { fields: "user_id,username,followers_count,media_count", access_token: token });
   return {
     id: String(j.user_id || j.id || ""),
     usuario: j.username || "",

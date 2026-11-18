@@ -9,3 +9,9 @@ SESSION_SECRET=cambia-esto-por-un-texto-largo-y-aleatorio-de-32-o-mas-caracteres
 # TOKENS_KEY=otro-texto-largo-y-aleatorio
 # Para probar sin Instagram real, una API simulada:
 # IG_API_BASE=http://localhost:9911
+# «Conectar con Meta» (inicio de sesión unificado): la clave secreta de la app de Meta.
+# META_APP_SECRET=...
+# Para probar sin Meta real: API y diálogo simulados, y la dirección de vuelta local.
+# META_API_BASE=http://localhost:9911
+# META_DIALOG_BASE=http://localhost:9911
+# META_VUELTA=http://localhost:8787/planifica/redes/meta/vuelta

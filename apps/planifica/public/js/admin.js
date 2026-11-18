@@ -40,6 +40,7 @@ async function boot() {
   D = await api("/api/admin/resumen");
   D.yo = s.usuario.id;
   pintar();
+  await vueltaDeMeta();
   // Desde la parrilla («Conectar Instagram»): abre directo la conexión de ese cliente.
   const slug = new URLSearchParams(location.search).get("instagram");
   const c = slug && D.clientes.find((x) => x.slug === slug);
@@ -159,21 +160,26 @@ function formInstagram(c) {
     ? `<div class="notice ${i.estado === "error" ? "bad" : "ok"}">${icon(i.estado === "error" ? "warn" : "check")}<div>
         ${i.estado === "error" ? `<b>Hay que volver a conectarla.</b> ${esc(i.error || "")}` : `Conectada como <b>@${esc(i.usuario)}</b>.`}
         <br><span class="small">Última actualización: ${esc(fecha(i.sincronizado_en))}${
-      i.token_vence
-        ? ` · El token se renueva solo (vence el ${esc(new Date(i.token_vence).toLocaleDateString("es"))} si no se renueva).`
-        : ""
+      i.token_vence ? ` · El token se renueva solo.` : ""
     }</span></div></div>`
     : "";
   const m = modal({
     titulo: `Instagram de ${c.nombre}`,
     html: `${estado}
-      <p class="small" style="margin-top:12px">${i ? "Para cambiar la cuenta o arreglar la conexión, pega un token nuevo." : "Pega el token de la cuenta de Instagram del cliente. Planifica traerá sus métricas cada mañana."}</p>
-      <ol class="small muted" style="margin:6px 0 12px 18px;line-height:1.6">
-        <li>En la app de Meta, ve a <b>Roles de la app → Evaluadores de Instagram</b> y agrega la cuenta. Acepta la invitación desde esa cuenta, en Configuración → Apps y sitios web.</li>
-        <li>En la configuración del producto de Instagram, pulsa <b>Generar token</b> junto a la cuenta y cópialo.</li>
-      </ol>
-      <div class="field"><label for="igt">Token</label><textarea id="igt" rows="3" autocomplete="off" spellcheck="false" placeholder="IGAA…"></textarea>
-      <span class="hint">Se guarda cifrado y nadie lo puede volver a ver, ni siquiera tú.</span></div>`,
+      <p class="small" style="margin-top:12px">${
+      i
+        ? "Para cambiar la cuenta o arreglar la conexión, vuelve a conectarla con Meta."
+        : "Conecta la cuenta de Instagram del cliente. Planifica traerá sus métricas cada mañana."
+    }</p>
+      <p class="small muted">Te llevará a Meta: inicia sesión, elige la cuenta de Instagram del cliente (y su cuenta publicitaria, si la tiene) y autoriza. Al terminar vuelves aquí.</p>
+      <button class="btn btn-primary" type="button" id="igmeta" style="margin:6px 0 14px">${
+      i ? "Volver a conectar con Meta" : "Conectar con Meta"
+    }</button>
+      <details class="small"><summary class="muted" style="cursor:pointer">Pegar un token a mano (inicio de sesión de Instagram)</summary>
+        <div class="field" style="margin-top:8px"><label for="igt">Token</label><textarea id="igt" rows="3" autocomplete="off" spellcheck="false" placeholder="IGAA…"></textarea>
+        <span class="hint">Se guarda cifrado y nadie lo puede volver a ver, ni siquiera tú.</span></div>
+        <button class="btn btn-sm" type="button" id="igtok">Guardar token</button>
+      </details>`,
     acciones: [
       ...(i
         ? [{
@@ -190,18 +196,60 @@ function formInstagram(c) {
           },
         }]
         : []),
+      { texto: "Cerrar", onClick: (cerrar) => cerrar() },
+    ],
+  });
+  $("#igmeta", m.el).addEventListener("click", (e) =>
+    conBoton(e.currentTarget, async () => {
+      const r = await api(`/api/admin/clientes/${c.id}/redes/meta`);
+      location.href = r.url;
+    })
+  );
+  $("#igtok", m.el).addEventListener("click", (e) =>
+    conBoton(e.currentTarget, async () => {
+      const r = await api(`/api/admin/clientes/${c.id}/redes/ig`, { method: "PUT", body: { token: $("#igt", m.el).value } });
+      m.cerrar();
+      toast(`Conectado como @${r.usuario}`, "ok");
+      await recargar();
+    })
+  );
+}
+
+/** Al volver de Meta: conectada, error o elegir entre varias cuentas autorizadas. */
+async function vueltaDeMeta() {
+  const q = new URLSearchParams(location.search);
+  const ok = q.get("meta_ok"), err = q.get("meta_error"), pend = q.get("meta_elegir");
+  if (!ok && !err && !pend) return;
+  history.replaceState(null, "", `${location.pathname}#clientes`);
+  if (ok) toast(`Instagram conectado como @${ok}`, "ok");
+  if (err) toast(err, "bad");
+  if (!pend) return;
+  let p;
+  try {
+    p = await api(`/api/admin/redes/meta/pendiente/${encodeURIComponent(pend)}`);
+  } catch (e) {
+    toast(e.message, "bad");
+    return;
+  }
+  const m = modal({
+    titulo: `¿Qué cuenta es de ${p.cliente}?`,
+    html: `<p class="small">Autorizaste varias cuentas de Instagram. Elige la de este cliente.</p>
+      <div class="field">${
+      p.cuentas.map((x, n) =>
+        `<label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="radio" name="igc" value="${esc(x.id)}"${n ? "" : " checked"}> @${esc(x.usuario || x.id)}</label>`
+      ).join("")
+    }</div>`,
+    acciones: [
       { texto: "Cancelar", onClick: (cerrar) => cerrar() },
       {
-        texto: i ? "Guardar token" : "Conectar",
+        texto: "Conectar",
         clase: "btn-primary",
         onClick: (cerrar, b) =>
           conBoton(b, async () => {
-            const r = await api(`/api/admin/clientes/${c.id}/redes/ig`, {
-              method: "PUT",
-              body: { token: $("#igt", m.el).value },
-            });
+            const cuenta_id = $('input[name="igc"]:checked', m.el)?.value;
+            const r = await api("/api/admin/redes/meta/elegir", { method: "POST", body: { state: pend, cuenta_id } });
             cerrar();
-            toast(`Conectado como @${r.usuario}`, "ok");
+            toast(`Instagram conectado como @${r.usuario}`, "ok");
             await recargar();
           }),
       },
