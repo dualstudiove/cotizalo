@@ -1239,9 +1239,15 @@
    * La meta con sus valores reales: si viene de Instagram, el dato automático (lo escrito a mano solo cubre los
    * meses sin dato, p. ej. antes de conectar la cuenta) y «Hoy» desde Instagram si estaba vacío.
    */
+  /** Meta como % de aumento (m.tarPct): la meta en número sale de «Hoy» + ese porcentaje. */
+  function conPct(m) {
+    if (m.tarMode !== "pct" || !hasNum(m.tarPct) || !hasNum(m.cur)) return m;
+    var cur = Number(m.cur), d = decOf(cur), k = Math.pow(10, d);
+    return Object.assign({}, m, { tar: Math.round(cur * (1 + Number(m.tarPct) / 100) * k) / k });
+  }
   function effM(m, pl, y, qn) {
     var src = srcOf(m, pl);
-    if (src === "manual") return m;
+    if (src === "manual") return conPct(m);
     var real = [], auto = [];
     for (var i = 0; i < 3; i++) {
       var a = autoVal(src, y, qn * 3 + i), man = m.real && m.real[i];
@@ -1258,7 +1264,7 @@
       var b = baseVal(src, y, qn);
       if (b) extra.cur = b.v;
     }
-    return Object.assign({}, m, extra);
+    return conPct(Object.assign({}, m, extra));
   }
   function metricCard(gid, g, pl, m0, edit, y, qn) {
     var m = effM(m0, pl, y, qn);
@@ -1268,7 +1274,7 @@
       ro = S.canWrite ? "" : " disabled";
     var h = '<div class="mx">';
     if (edit) {
-      h += '<div class="mx-edit"><div class="fld"><label for="mf-' + uid +
+      h += '<div class="mx-edit' + (pl === "ig" ? "" : " no-src") + '"><div class="fld"><label for="mf-' + uid +
         '-name">Métrica</label><input class="in" id="mf-' + uid + '-name" data-mf="' + key +
         'name" type="text" placeholder="Ej. Seguidores" value="' + esc(m.name || "") +
         '" autocomplete="off"></div>' +
@@ -1287,10 +1293,18 @@
           ? '<span class="hint" style="min-height:0"><span class="auto">' + IG_SVG + "Dato de Instagram" +
             (m.curMes != null ? " de " + MONTHS[m.curMes].toLowerCase() : "") + "</span></span>"
           : "") + "</div>" +
-        '<div class="fld"><label for="mf-' + uid +
-        '-tar">Meta del trimestre</label><input class="in" id="mf-' + uid + '-tar" data-mf="' + key +
-        'tar" type="text" inputmode="decimal" placeholder="2.000" value="' + esc(valStr(m.tar)) +
-        '" autocomplete="off"></div>' +
+        '<div class="fld"><label for="mf-' + uid + (m.tarMode === "pct" ? "-tarPct" : "-tar") +
+        '">Meta del trimestre</label><div class="tarbox"><select class="in tarmode" data-mf="' + key +
+        'tarMode" aria-label="Tipo de meta"><option value="num"' + (m.tarMode !== "pct" ? " selected" : "") +
+        '>Número</option><option value="pct"' + (m.tarMode === "pct" ? " selected" : "") + ">% de aumento</option></select>" +
+        (m.tarMode === "pct"
+          ? '<input class="in" id="mf-' + uid + '-tarPct" data-mf="' + key + 'tarPct" type="text" inputmode="decimal" placeholder="10" value="' +
+            esc(valStr(m.tarPct)) + '" autocomplete="off"><span class="pctsuf">%</span>'
+          : '<input class="in" id="mf-' + uid + '-tar" data-mf="' + key + 'tar" type="text" inputmode="decimal" placeholder="2.000" value="' +
+            esc(valStr(m.tar)) + '" autocomplete="off">') + "</div>" +
+        (m.tarMode === "pct" && hasNum(m.tar)
+          ? '<span class="hint" style="min-height:0"><span>= ' + fmtNum(Number(m.tar), decOf(Number(m.cur))) + " al cierre del trimestre</span></span>"
+          : "") + "</div>" +
         '<div class="del">' + (S.mdel === uid
           ? '¿Quitar? <button class="btn sm danger" type="button" data-act="mdelyes" data-gid="' +
             esc(gid) + '" data-plat="' + pl + '" data-mid="' + uid +
@@ -1625,7 +1639,9 @@
     var q = quarterProgress(m, ms, y, qn);
     var h = '<div class="gm"><div class="gm-top">' + ring(q.pct, q.st.k) + '<div class="gt-b"><div class="gt-h"><span class="pl">' +
       PLAT_ABBR[pl] + "</span><b>" + esc(m.name || "Sin nombre") + "</b></div>" +
-      '<div class="mut">De ' + fmtNum(Number(m.cur), ms.d) + " a <b>" + fmtNum(Number(m.tar), ms.d) + "</b> · " + src + "</div>" +
+      '<div class="mut">De ' + fmtNum(Number(m.cur), ms.d) + " a <b>" + fmtNum(Number(m.tar), ms.d) + "</b>" +
+      (m.tarMode === "pct" && hasNum(m.tarPct) ? " (" + (Number(m.tarPct) >= 0 ? "+" : "") + fmtNum(Number(m.tarPct), decOf(Number(m.tarPct))) + " %)" : "") +
+      " · " + src + "</div>" +
       mpill(q.st) + '</div></div><div class="gm-months">';
     for (var i = 0; i < 3; i++) {
       var mi = qn * 3 + i, pr = monthProgress(m, i, ms, y, mi), auto = m._auto && m._auto[i];
@@ -4638,6 +4654,20 @@
             }
           } else if (m.src === "manual" && m.curAuto) {
             m.curAuto = false;
+          }
+        }
+        else if (mq[3] === "tarMode") {
+          // Al cambiar de modo, se conserva la misma meta: el número pasa a % sobre «Hoy» y viceversa.
+          var gq2 = /^q-(\d{4})-([1-4])$/.exec(mq[0]);
+          var em2 = gq2 ? effM(m, mq[1], Number(gq2[1]), Number(gq2[2]) - 1) : m;
+          if (el.value === "pct") {
+            m.tarMode = "pct";
+            if (hasNum(em2.tar) && hasNum(em2.cur) && Number(em2.cur)) {
+              m.tarPct = Math.round((Number(em2.tar) / Number(em2.cur) - 1) * 1000) / 10;
+            }
+          } else {
+            if (hasNum(em2.tar)) m.tar = Number(em2.tar);
+            m.tarMode = "num";
           }
         }
         else {
