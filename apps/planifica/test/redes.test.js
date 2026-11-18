@@ -229,14 +229,26 @@ test("tarea de la mañana: cifras de la cuenta, posts del día y no repite", asy
   await tarea;
   const tras = sim.llamadas.length;
   assert.ok(tras > 0);
-  const { tareaDiaria } = await import("../src/redes/sync.js");
+  const { tareaDiaria, faltanHistorial } = await import("../src/redes/sync.js");
+  // Las siguientes ejecuciones de la mañana solo completan el historial de 3 meses, hasta que no falte nada
+  for (let i = 0; i < 10 && (await faltanHistorial(ids.a)); i++) await tareaDiaria();
+  assert.equal(await faltanHistorial(ids.a), 0, "se completan los últimos 3 meses");
+  const conCifras = await bindings.DB.prepare(
+    "SELECT COUNT(*) AS n FROM redes_cuenta_dia WHERE cliente_id = ? AND json_extract(datos, '$.alcance') IS NOT NULL",
+  ).bind(ids.a).first();
+  assert.ok(conCifras.n >= 89, `historial de cifras: ${conCifras.n} días`);
+  const conNeto = await bindings.DB.prepare(
+    "SELECT COUNT(*) AS n FROM redes_cuenta_dia WHERE cliente_id = ? AND json_extract(datos, '$.neto') IS NOT NULL",
+  ).bind(ids.a).first();
+  assert.ok(conNeto.n >= 29 && conNeto.n <= 31, `seguidores netos: ${conNeto.n} días`);
+  const completo = sim.llamadas.length;
   await tareaDiaria();
-  assert.equal(sim.llamadas.length, tras, "un cliente completo no se vuelve a pedir el mismo día");
+  assert.equal(sim.llamadas.length, completo, "un cliente completo no se vuelve a pedir el mismo día");
   const d = await lectora("/laboratorio-rh/api/datos");
   assert.equal(d.json.metricas[ids.p1].ig.m.likes, 55);
   const meses = Object.values(d.json.cuentaMes.ig);
   assert.ok(meses.some((x) => x.seguidores === 1250));
-  assert.ok(meses.some((x) => x.alcance === 3000));
+  assert.ok(meses.some((x) => x.alcance >= 3000)); // suma del mes: con el historial, varios días
   const conAudiencia = await bindings.DB.prepare("SELECT audiencia FROM redes_conexiones WHERE cliente_id = ?").bind(ids.a).first();
   assert.equal(JSON.parse(conAudiencia.audiencia).length, 7);
 });
@@ -249,7 +261,9 @@ test("botón Actualizar: solo editores y con freno de 15 minutos", async () => {
   assert.equal((await editora("/laboratorio-rh/api/datos")).json.metricas[ids.p1].ig.m.likes, 60);
   const otra = await editora("/laboratorio-rh/api/redes/actualizar", { method: "POST", body: {} });
   assert.equal(otra.status, 429);
-  assert.match(otra.json.error, /15 min/);
+  assert.match(otra.json.error, /15 min/, "con el historial completo, el freno es de 15 minutos");
+  // con el historial completo, Actualizar solo pide lo del día (perfil, cifras y netos de ayer, posts)
+  assert.ok(r.json.faltan === 0);
 });
 
 test("resultados: cifras diarias del periodo, para cualquiera con acceso", async () => {

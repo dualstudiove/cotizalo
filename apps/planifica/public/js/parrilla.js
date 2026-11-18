@@ -2536,7 +2536,10 @@
     else render();
     window.PLANIFICA.api("/api/redes/actualizar", { method: "POST", body: { red: "ig" } })
       .then(function (r) {
-        toast(r && r.ok === false ? (r.error || "No se pudo actualizar.") : r && r.parcial
+        toast(r && r.ok === false ? (r.error || "No se pudo actualizar.") : r && r.faltan
+          ? "Trayendo los últimos 3 meses: faltan " + plural(r.faltan, "día", "días") +
+            ". Vuelve a pulsar Actualizar en un minuto, o se completa solo en las mañanas."
+          : r && r.parcial
           ? "Actualizado en parte: el resto se completa en la próxima actualización."
           : "Métricas actualizadas");
         S.resCache = {};

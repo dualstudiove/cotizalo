@@ -11,6 +11,7 @@ import {
   conectarInstagram,
   conexionDe,
   desconectar,
+  faltanHistorial,
   FRENO_MANUAL_MS,
   presupuesto,
   PRESUPUESTO_EJECUCION,
@@ -161,7 +162,7 @@ export function registrarRedes(r) {
     try {
       return await sincronizar(con, presupuesto(8), { soloPost: post.publicacion_id, forzar: true });
     } catch (e) {
-      if (e instanceof SinPresupuesto) return { ok: true, parcial: true };
+      if (e instanceof SinPresupuesto) return { ok: true, parcial: true, faltan: await faltanHistorial(con.cliente_id) };
       throw e;
     }
   });
@@ -171,7 +172,9 @@ export function registrarRedes(r) {
     exigirEditor(ctx);
     const con = await conectada(ctx.cliente, ctx.body.red || "ig");
     const ahora = Date.now();
-    const espera = (con.manual_en || 0) + FRENO_MANUAL_MS - ahora;
+    // Mientras se trae el historial de los últimos 3 meses, se puede volver a pulsar al minuto.
+    const freno = (await faltanHistorial(con.cliente_id)) ? 60_000 : FRENO_MANUAL_MS;
+    const espera = (con.manual_en || 0) + freno - ahora;
     if (espera > 0) {
       throw new HttpError(429, `Ya se actualizó hace poco. Podrás volver a hacerlo en ${Math.ceil(espera / 60_000)} min.`);
     }
@@ -184,7 +187,7 @@ export function registrarRedes(r) {
     try {
       return await sincronizar({ ...con, manual_en: ahora }, presupuesto(PRESUPUESTO_EJECUCION), { forzar: true });
     } catch (e) {
-      if (e instanceof SinPresupuesto) return { ok: true, parcial: true };
+      if (e instanceof SinPresupuesto) return { ok: true, parcial: true, faltan: await faltanHistorial(con.cliente_id) };
       throw e;
     }
   });

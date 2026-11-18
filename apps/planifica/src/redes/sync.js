@@ -20,7 +20,9 @@ export { presupuesto, SinPresupuesto } from "./instagram.js";
 
 const DIA = 86_400_000;
 export const FRENO_MANUAL_MS = 15 * 60_000;
-const DIAS_NETOS_POR_VEZ = 6; // días de seguidores netos que se piden en cada actualización
+export const DIAS_HISTORIAL = 90; // al conectar o actualizar se completan los últimos 3 meses de cifras de la cuenta
+const DIAS_NETOS = 30; // Meta da los seguidores netos solo de los últimos 30 días
+const RESERVA_HISTORIAL = 2; // llamadas que el historial deja sin usar en cada ejecución
 export const PRESUPUESTO_EJECUCION = 45; // de las 50 llamadas externas que permite el plan gratuito
 const RENOVAR_ANTES = 10 * DIA; // el token de Instagram dura 60 días; se renueva cuando le quedan menos de 10
 const PAGINAS_MAX = 4; // para encontrar un link se revisan como mucho 200 publicaciones de la cuenta
@@ -217,28 +219,10 @@ async function pasoCuenta(p, con, token) {
   } catch (e) {
     if (!(e instanceof ig.ErrorRed) || e.token) throw e; // sin permiso de métricas: el resto sigue
   }
-  // Seguidores netos (los que siguieron menos los que dejaron de seguir) de cada día de los últimos 30: Meta los da
-  // un día por llamada, así que en cada actualización se pide ayer y unos cuantos días que falten, del más reciente
-  // hacia atrás, hasta completar el mes.
+  // Seguidores netos de ayer (los que siguieron menos los que dejaron de seguir); los días anteriores, pasoHistorial.
   try {
-    const hechos = new Set(
-      (
-        await db.all(
-          `SELECT dia FROM redes_cuenta_dia WHERE cliente_id = ? AND red = 'ig' AND dia >= ?
-             AND json_extract(datos, '$.neto') IS NOT NULL`,
-          [con.cliente_id, sumarDias(dia, -30)],
-        )
-      ).map((f) => f.dia),
-    );
-    let n = 0;
-    for (let k = 1; k <= 30 && n < DIAS_NETOS_POR_VEZ; k++) {
-      const d = sumarDias(dia, -k);
-      if (hechos.has(d) && k > 1) continue;
-      n++;
-      const x = await ig.seguidoresDelDia(p, token, con.cuenta_id, inicioDia(d), inicioDia(sumarDias(d, 1)));
-      if (!x) break;
-      await guardarDiaCuenta(con.cliente_id, "ig", d, { datos: x });
-    }
+    const x = await ig.seguidoresDelDia(p, token, con.cuenta_id, inicioDia(ayer), inicioDia(dia));
+    await guardarDiaCuenta(con.cliente_id, "ig", ayer, { datos: x || { sin_neto: true } });
   } catch (e) {
     if (!(e instanceof ig.ErrorRed) || e.token) throw e; // menos de 100 seguidores o sin permiso: el resto sigue
   }
@@ -260,6 +244,60 @@ async function pasoCuenta(p, con, token) {
     con.cliente_id,
     con.red,
   ]);
+}
+
+/** Los días (del más reciente al más antiguo) a los que les faltan cifras o seguidores netos, desde anteayer. */
+async function diasSinHistorial(clienteId) {
+  const dia = hoy();
+  const filas = await db.all(
+    `SELECT dia,
+            json_extract(datos, '$.alcance') IS NOT NULL OR json_extract(datos, '$.sin_cifras') IS NOT NULL AS cifras,
+            json_extract(datos, '$.neto') IS NOT NULL OR json_extract(datos, '$.sin_neto') IS NOT NULL AS neto
+       FROM redes_cuenta_dia WHERE cliente_id = ? AND red = 'ig' AND dia >= ?`,
+    [clienteId, sumarDias(dia, -DIAS_HISTORIAL)],
+  );
+  const hay = new Map(filas.map((f) => [f.dia, f]));
+  const out = [];
+  for (let k = 2; k <= DIAS_HISTORIAL; k++) {
+    const d = sumarDias(dia, -k), f = hay.get(d);
+    const cifras = !(f && f.cifras), neto = k <= DIAS_NETOS && !(f && f.neto);
+    if (cifras || neto) out.push({ dia: d, cifras, neto });
+  }
+  return out;
+}
+
+/** Cuántos días de los últimos 3 meses faltan por traer. */
+export async function faltanHistorial(clienteId) {
+  return (await diasSinHistorial(clienteId)).length;
+}
+
+/**
+ * Historial: si faltan días de los últimos 3 meses (cifras de la cuenta) o de los últimos 30 (seguidores netos), se
+ * piden con las llamadas que sobren, del día más reciente hacia atrás. Meta los da un día por llamada, así que un
+ * historial completo toma unas cuantas actualizaciones; cuando ya está, no se pide nada más. Un día que Meta no
+ * tiene queda marcado para no volver a pedirlo.
+ */
+async function pasoHistorial(p, con, token) {
+  for (const d of await diasSinHistorial(con.cliente_id)) {
+    const desde = inicioDia(d.dia), hasta = inicioDia(sumarDias(d.dia, 1));
+    for (const tipo of ["cifras", "neto"]) {
+      if (!d[tipo]) continue;
+      if (p.n <= RESERVA_HISTORIAL) return;
+      let datos;
+      try {
+        if (tipo === "cifras") {
+          const c = await ig.cifrasDelDia(p, token, con.cuenta_id, desde, hasta);
+          datos = c.alcance != null ? c : { ...c, sin_cifras: true };
+        } else {
+          datos = (await ig.seguidoresDelDia(p, token, con.cuenta_id, desde, hasta)) || { sin_neto: true };
+        }
+      } catch (e) {
+        if (!(e instanceof ig.ErrorRed) || e.token) throw e;
+        datos = tipo === "cifras" ? { sin_cifras: true } : { sin_neto: true };
+      }
+      await guardarDiaCuenta(con.cliente_id, "ig", d.dia, { datos });
+    }
+  }
 }
 
 /**
@@ -329,6 +367,7 @@ export async function sincronizar(con, p, { forzar = false, soloPost = null } = 
       .filter((x) => x.medio_id && (forzar || x.dia !== dia))
       .sort((a, b) => (a.actualizado_en || 0) - (b.actualizado_en || 0));
     for (const post of posts) await pasoPost(p, token, post);
+    if (!soloPost) await pasoHistorial(p, con, token);
     await db.run(
       `UPDATE redes_conexiones SET estado = 'ok', error = NULL, sincronizado_en = ?${soloPost ? "" : ", completo_dia = ?"}
         WHERE cliente_id = ? AND red = ?`,
@@ -356,7 +395,7 @@ export async function sincronizar(con, p, { forzar = false, soloPost = null } = 
   } finally {
     await tocar(con.cliente_id);
   }
-  return { ok: true };
+  return soloPost ? { ok: true } : { ok: true, faltan: await faltanHistorial(con.cliente_id) };
 }
 
 /** La tarea de cada mañana: los clientes que aún no se actualizaron hoy, hasta agotar el presupuesto. */
@@ -377,6 +416,25 @@ export async function tareaDiaria() {
     } catch (e) {
       if (e instanceof ig.SinPresupuesto) break;
       console.error("[redes] error al sincronizar", con.cliente_id, e);
+    }
+  }
+  // Con lo que sobre, se sigue completando el historial de las cuentas que aún no tienen sus 3 meses.
+  if (p.n > RESERVA_HISTORIAL) {
+    const todas = await db.all(
+      `SELECT r.* FROM redes_conexiones r JOIN clientes c ON c.id = r.cliente_id
+        WHERE c.activo = 1 AND r.red = 'ig' AND r.token IS NOT NULL AND r.estado = 'ok' AND r.completo_dia = ?
+        ORDER BY COALESCE(r.sincronizado_en, 0)`,
+      [hoy()],
+    );
+    for (const con of todas) {
+      if (p.n <= RESERVA_HISTORIAL) break;
+      try {
+        ig.usarConexion(p, con.origen);
+        await pasoHistorial(p, con, await tokenVigente(p, con));
+      } catch (e) {
+        if (e instanceof ig.SinPresupuesto) break;
+        console.error("[redes] error al traer el historial", con.cliente_id, e);
+      }
     }
   }
   return { pendientes: pendientes.length, hechos, llamadas: PRESUPUESTO_EJECUCION - p.n };
