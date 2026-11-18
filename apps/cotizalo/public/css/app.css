@@ -165,6 +165,37 @@
     }
     body.buscando .patient {
       padding-top: 0;
+      padding-bottom: 0;
+    }
+    /* Y la página queda quieta: buscador, categorías y pestañas fijos arriba; solo la lista se desplaza.
+       El alto sale del área visible (sin el teclado), que app.js pone en --alto-visible. */
+    html:has(body.buscando),
+    body.buscando {
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    body.buscando #v-catalogo {
+      display: flex;
+      flex-direction: column;
+      height: var(--alto-visible, 100dvh);
+    }
+    body.buscando #v-catalogo > * {
+      flex: none;
+    }
+    body.buscando .buscador {
+      position: static;
+    }
+    body.buscando #lista {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      margin: 8px -16px 0;
+      padding: 4px 16px calc(96px + env(safe-area-inset-bottom));
+    }
+    body.buscando #lista > * {
+      flex: none;
     }
 
     /* Tarjeta compacta: nombre a la izquierda; precio y botón redondo en la misma fila a la derecha */
@@ -200,8 +231,13 @@
     .patient .btn.agregar .txt {
       display: none;
     }
-    .patient .item .side .badge.incluido {
-      max-width: 42vw;
+    .patient .ya-incluido {
+      width: 48px;
+      height: 48px;
+    }
+    .patient .ya-incluido svg.i {
+      width: 22px;
+      height: 22px;
     }
 
     /* Nada más chico que 44 px para el dedo */
@@ -451,17 +487,6 @@
   .item .side .contador .btn::after {
     content: none;
   }
-  /* «Incluido en <perfil>»: una sola línea; si el nombre es largo, se corta con «…» (completo al pasar o tocar) */
-  .item .side .badge.incluido {
-    max-width: min(240px, 46vw);
-    min-width: 0;
-  }
-  .item .side .badge.incluido > span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
   /* Precio en promoción: el de antes tachado, más chico (el nuevo, en el color normal) */
   .price.promo s {
     font-family: var(--font-body);
@@ -470,10 +495,46 @@
     color: var(--ink-3);
     margin-right: 2px;
   }
-  /* Con el nombre de la promoción puede ser largo: que baje de línea en vez de salirse de la tarjeta */
+  /* Promoción: una línea de texto en el color de información, sin burbuja (en el celular la burbuja se
+     deformaba al bajar de línea) */
   .promo-tag {
-    white-space: normal;
-    max-width: 100%;
+    color: var(--info);
+    font-weight: 600;
+  }
+  /* Indicaciones: ícono y texto en la misma línea; si el texto es largo, baja junto al ícono */
+  .item .meta.ind {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  .item .meta svg.i {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin-top: 1px;
+  }
+  /* «✓ Incluido en <perfil>»: debajo del nombre, en verde */
+  .item .meta.incluido {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 5px;
+    color: var(--ok);
+    font-weight: 600;
+  }
+  /* En lugar del botón: un círculo con ✓ (no se puede tocar) */
+  .ya-incluido {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: var(--ok-bg);
+    color: var(--ok);
+  }
+  .ya-incluido svg.i {
+    width: 18px;
+    height: 18px;
   }
   .item details {
     position: relative;

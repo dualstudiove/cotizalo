@@ -386,12 +386,14 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** Etiqueta «Semana del corazón · −25 % hasta el 20/11/2026» (en el color de información). */
+/** «Mes Rosa · −20 % hasta el 30/11»: texto en el color de información (el año solo si no es el actual). */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
-  return `<span class="badge info promo-tag">${
+  const f = fmtFecha(x.promo.hasta);
+  const corta = x.promo.hasta.slice(0, 4) === String(new Date().getFullYear()) ? f.slice(0, 5) : f;
+  return `<span class="promo-tag">${
     x.promo.nombre ? `${esc(x.promo.nombre)} · ` : ""
-  }−${x.promo.porcentaje} % hasta el ${fmtFecha(x.promo.hasta)}</span>`;
+  }−${x.promo.porcentaje} % hasta el ${corta}</span>`;
 }
 
 /**
@@ -414,7 +416,7 @@ function botonAgregar(act, x, sel) {
  */
 function metaTarjeta(x, promoPrimero = false) {
   const ind = x.indicaciones
-    ? `<div class="meta">${icon("info")} <span>${esc(x.indicaciones)}</span></div>`
+    ? `<div class="meta ind">${icon("info")}<span>${esc(x.indicaciones)}</span></div>`
     : "";
   const promo = x.promo ? `<div class="meta">${etiquetaPromo(x)}</div>` : "";
   return promoPrimero ? promo + ind : ind + promo;
@@ -426,18 +428,24 @@ function cardExamen(e) {
   const sel = S.ex.includes(e.id);
   const cub = !sel && cubiertoPor(e.id);
   const max = maxPor(e);
-  let accion;
-  if (cub) {
-    accion = `<span class="badge ok incluido" title="Incluido en ${
-      esc(cub.nombre)
-    }"><span>Incluido en ${esc(cub.nombre)}</span></span>`;
-  } else if (sel && max > 1) accion = contador(e, "tarjeta");
-  else accion = botonAgregar("ex", e, sel);
   const tambien = aliasEncontrado(e);
-  return `<article class="item ${sel ? "sel" : ""} ${cub ? "dis" : ""}">
-    <div><h3>${esc(e.nombre)}</h3>${
+  const cabeza = `<h3>${esc(e.nombre)}</h3>${
     tambien ? `<p class="alias">También llamado <b>${esc(tambien)}</b></p>` : ""
-  }${metaTarjeta(e)}</div>
+  }`;
+  // Ya viene en un perfil elegido: no se cobra aparte, así que sin precio ni promoción; un ✓ en lugar del botón
+  if (cub) {
+    return `<article class="item dis">
+    <div>${cabeza}<div class="meta incluido">${icon("check")}<span>Incluido en ${
+      esc(cub.nombre)
+    }</span></div></div>
+    <div class="side"><span class="ya-incluido" role="img" aria-label="Incluido en ${
+      esc(cub.nombre)
+    }">${icon("check")}</span></div>
+  </article>`;
+  }
+  const accion = sel && max > 1 ? contador(e, "tarjeta") : botonAgregar("ex", e, sel);
+  return `<article class="item ${sel ? "sel" : ""}">
+    <div>${cabeza}${metaTarjeta(e)}</div>
     <div class="side">${precioConPromo(e, max > 1 ? "<small> c/u</small>" : "")}${accion}</div>
   </article>`;
 }
@@ -1069,8 +1077,14 @@ function seguirBuscando(act, id, antes) {
   );
 }
 
-/** Si el buscador quedó pegado arriba, al escribir se vuelve al inicio de los resultados. */
+/** Al escribir se vuelve al inicio de los resultados (de la lista, o de la página si el buscador quedó pegado). */
 function subirAResultados() {
+  // Buscando en el celular, la que se desplaza es la lista
+  if (document.body.classList.contains("buscando")) {
+    const lista = $("#lista");
+    if (lista) lista.scrollTop = 0;
+    return;
+  }
   const aviso = $("#aviso");
   const top = $("header.top");
   if (!aviso || !top) return;
@@ -1099,12 +1113,23 @@ document.addEventListener("focusin", (e) => {
   if (e.target.id !== "q" || !MOVIL.matches) return;
   clearTimeout(salirBusqueda);
   if (document.body.classList.contains("buscando")) return;
+  medirVisible();
   document.body.classList.add("buscando");
-  const aviso = $("#aviso");
-  if (aviso) {
-    const destino = aviso.getBoundingClientRect().bottom + window.scrollY;
-    if (window.scrollY < destino) window.scrollTo({ top: destino });
-  }
+  // Arriba ya no queda nada: la página va al inicio y lo que se desplaza es la lista
+  window.scrollTo({ top: 0 });
+  const lista = $("#lista");
+  if (lista) lista.scrollTop = 0;
+});
+
+/** Alto del área visible (sin el teclado) para la lista que se desplaza mientras se busca. */
+function medirVisible() {
+  const h = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty("--alto-visible", `${Math.round(h)}px`);
+}
+window.visualViewport?.addEventListener("resize", medirVisible);
+// iOS mueve la página al abrir el teclado aunque no haya nada que desplazar: se devuelve al inicio
+window.visualViewport?.addEventListener("scroll", () => {
+  if (document.body.classList.contains("buscando") && window.scrollY) window.scrollTo({ top: 0 });
 });
 document.addEventListener("focusout", (e) => {
   if (e.target.id !== "q") return;
@@ -1183,11 +1208,13 @@ document.addEventListener("click", (e) => {
       renderChips();
       mostrarChipElegido();
       renderLista();
+      subirAResultados();
       break;
     case "tab":
       S.tab = id;
       S.tabAuto = false; // la eligió la persona: no se cambia sola
       renderLista();
+      subirAResultados();
       break;
     case "ex":
       alternarExamen(id);
