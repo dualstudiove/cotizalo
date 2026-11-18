@@ -3474,5 +3474,116 @@
     color: var(--ink-3);
     font-weight: 600;
   }
+
+  /* Orgánico contra ads, por meta */
+  .sp {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .sp-goal h4 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .sp-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .sp-row:has(.sp-m) {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(220px, auto);
+  }
+  .sp-avg:has(.sp-m) {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .sp-m {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .sp-bar {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 7px;
+    background: var(--line-2);
+    overflow: hidden;
+  }
+  .sp-bar i {
+    display: block;
+    height: 100%;
+  }
+  .sp-org {
+    background: var(--accent);
+  }
+  .sp-ads {
+    background: var(--warn);
+  }
+  .sp-v {
+    font-size: 13px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .sp-v b {
+    color: var(--ink);
+  }
+  .sp-avg {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .sp-pair {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sp-l {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) 70px;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .sp-l b {
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .sp-n {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .sp-k {
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .sp-k-org {
+    background: var(--accent);
+  }
+  .sp-k-ads {
+    background: var(--warn);
+  }
+  @media (max-width:560px) {
+    .sp-row,
+    .sp-row:has(.sp-m) {
+      grid-template-columns: 34px minmax(0, 1fr);
+    }
+    .sp-row:not(:has(.sp-m)) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .sp-v {
+      grid-column: 1 / -1;
+    }
+    .sp-l {
+      grid-template-columns: 80px minmax(0, 1fr) 50px;
+    }
+  }
 }
 
