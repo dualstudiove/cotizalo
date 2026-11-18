@@ -37,6 +37,7 @@ import {
 import { borrarImagenes, decodificar, guardarImagen, leerImagen } from "./almacen.js";
 import { tocar } from "./cambios.js";
 import { datosDeRedes } from "./redes/rutas.js";
+import { datosDeAds } from "./ads.js";
 import { alCambiarLink } from "./redes/sync.js";
 
 // Topes diarios por cliente (en la base): frenan un uso desbocado antes de que agote la cuota gratuita de la cuenta.
@@ -209,6 +210,8 @@ export function registrarRutas(r) {
       nombres,
       // Métricas de redes: conexiones, métricas de cada post vinculado y cifras de la cuenta por mes.
       ...(await datosDeRedes(cliente.id)),
+      // Ads: presupuesto de cada mes y posts impulsados.
+      ads: await datosDeAds(cliente.id),
       // Para la barra superior: si puede cambiar de cliente o ir a la administración.
       navegacion: { clientes: (await clientesDe(usuario)).length, es_admin: !!usuario.es_admin },
     };

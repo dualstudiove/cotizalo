@@ -9,7 +9,7 @@ Nació como el artefacto «Parrilla de Contenido» de claude.ai (del que tambié
 | Dirección                            | Qué es                                                                                                                                      |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dualstudio.app/planifica`           | Iniciar sesión. Con un solo cliente se entra directo; con varios, se elige. También está «Tu cuenta» (nombre, contraseña, cerrar sesiones). |
-| `dualstudio.app/planifica/<cliente>` | La parrilla del cliente: Rendimiento, Lista, Calendario, Objetivos y Pauta.                                                                 |
+| `dualstudio.app/planifica/<cliente>` | La parrilla del cliente: Rendimiento (con Ads), Lista, Calendario, Objetivos y Pauta. Con `/preview` al final, la vista del cliente.         |
 | `dualstudio.app/planifica/admin`     | Clientes y equipo (solo administradores).                                                                                                   |
 
 ## Papeles
@@ -60,6 +60,21 @@ Planifica trae las métricas de la cuenta de Instagram de cada cliente y las mue
 - **Objetivos:** en una meta de Instagram se elige de dónde sale el valor real: seguidores, alcance, reproducciones, interacciones o publicaciones del mes, o la media por post de likes, comentarios, guardados, compartidos, alcance o interacciones. Las metas sin origen elegido lo toman de su nombre («Seguidores», «Media de likes»…). En las que vienen de Instagram, los cierres de cada mes se llenan solos; lo escrito a mano solo cuenta en meses sin datos. Rendimiento muestra las metas del mes o del trimestre con un círculo de avance y si se cumplieron.
 - **Secretos:** `TOKENS_KEY` (opcional) cifra los tokens; si falta, se usa `SESSION_SECRET`. Si cambias ese secreto, hay que volver a pegar los tokens.
 - **TikTok:** pendiente (su conexión necesita el botón «Conectar» con inicio de sesión).
+
+## Ads
+
+En **Rendimiento → Ads** el equipo registra la inversión en publicidad de cada cliente y el cliente la ve tal cual (en dólares).
+
+- **Presupuesto del mes:** el monto que aprobó el cliente, con una nota opcional. Planifica muestra lo invertido y el saldo, avisa al pasar el 80 % y marca en rojo si se pasa.
+- **Impulsos:** cada post de la parrilla que se impulsa en Meta, con fechas, monto gastado, objetivo y los resultados que da Meta (alcance, clics a WhatsApp, mensajes, visitas al perfil, seguidores). El gasto cuenta en el mes en que empezó el impulso.
+- **Cálculos:** costo por clic a WhatsApp (el resultado principal), costo por mensaje, alcance pagado y los últimos 6 meses. Los posts impulsados llevan la marca «Impulsado» en la Lista, el Calendario y Top posts, y su detalle muestra lo pagado al lado de lo orgánico.
+- **Por ahora es manual** (`src/ads.js`, tablas `ads_presupuestos` y `ads_impulsos`). Las columnas `origen` y `meta_ad_id` dejan listo leerlo desde Meta Ads más adelante.
+
+Rendimiento está organizado en secciones (Resumen, Objetivos, Ads, Contenido y Audiencia) con un índice arriba.
+
+## Vista del cliente
+
+Quien edita tiene el botón **Ver como cliente**: abre `dualstudio.app/planifica/<cliente>/preview`, la misma parrilla en modo lectura (sin botones de edición ni avisos internos), para mostrarle al cliente sus resultados desde tu cuenta. Sigue pidiendo iniciar sesión.
 
 ## Importar una Parrilla de Contenido
 

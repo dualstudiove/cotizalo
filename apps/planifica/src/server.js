@@ -7,6 +7,7 @@ import { asegurarEsquema } from "./esquema.js";
 import { registrarRutas } from "./rutas.js";
 import { registrarAdmin } from "./admin.js";
 import { registrarRedes } from "./redes/rutas.js";
+import { registrarAds } from "./ads.js";
 import { tareaDiaria } from "./redes/sync.js";
 import { asegurarAdminDesdeSecretos, RESERVADOS } from "./sesion.js";
 
@@ -14,6 +15,7 @@ const router = new Router();
 registrarRutas(router);
 registrarAdmin(router);
 registrarRedes(router);
+registrarAds(router);
 
 export const { app, fetch, scheduled } = crearServidor({
   router,
@@ -49,6 +51,12 @@ export const { app, fetch, scheduled } = crearServidor({
     };
     app.get("/:cliente", parrilla);
     app.get("/:cliente/", parrilla);
+    // Vista del cliente: la misma parrilla en modo lectura (la página lo deduce de la dirección).
+    app.get("/:cliente/preview", (c) => {
+      const slug = String(c.req.param("cliente") || "");
+      if (RESERVADOS.has(slug.toLowerCase()) || !/^[a-z0-9-]{2,40}$/i.test(slug)) return noEncontrada();
+      return asset(c, "/parrilla.html");
+    });
   },
 });
 

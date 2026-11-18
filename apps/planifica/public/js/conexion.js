@@ -19,6 +19,8 @@ import { basePath, crearApi } from "../_ds/comun/web/api.js";
 const BASE = basePath(import.meta.url, 1);
 const CLIENTE = decodeURIComponent(location.pathname.slice(BASE.length).split("/")[1] || "")
   .toLowerCase();
+// Vista del cliente (<base>/<cliente>/preview): la misma parrilla en modo lectura, para mostrársela al cliente.
+const PREVIEW = location.pathname.slice(BASE.length).split("/")[2] === "preview";
 const API = `${BASE}/${CLIENTE}`;
 const api = crearApi((ruta) => API + ruta);
 const apiRaiz = crearApi((ruta) => BASE + ruta);
@@ -30,6 +32,8 @@ window.PLANIFICA = {
   img: `${API}/api/imagenes/`,
   base: BASE,
   cliente: CLIENTE,
+  preview: PREVIEW,
+  ads: { presupuestos: {}, impulsos: [] },
   redes: { conexiones: {}, metricas: {}, cuentaMes: {} },
   api: (ruta, opciones) => api(ruta, opciones),
   url: (ruta) => API + ruta,
@@ -88,7 +92,31 @@ function pintarCabecera() {
   const nombre = document.getElementById("cliente-nombre");
   if (nombre) nombre.textContent = c.nombre;
   const nuevo = document.getElementById("newPost");
-  if (nuevo) nuevo.hidden = estado.rol !== "editor"; // solo lectura: no puede crear
+  if (nuevo) nuevo.hidden = estado.rol !== "editor" || PREVIEW; // solo lectura: no puede crear
+  const acct = document.getElementById("acct");
+  if (acct) acct.readOnly = estado.rol !== "editor" || PREVIEW;
+  // «Ver como cliente» (para quien edita) y, dentro de esa vista, la franja para salir.
+  const ver = document.getElementById("verCliente");
+  if (ver) {
+    ver.hidden = estado.rol !== "editor" || PREVIEW;
+    ver.href = `${API}/preview${location.hash}`;
+  }
+  if (PREVIEW && !document.getElementById("franjaPreview")) {
+    const f = document.createElement("div");
+    f.id = "franjaPreview";
+    f.className = "franja-preview";
+    f.innerHTML = '<span><b>Vista del cliente.</b> Así ve el cliente su parrilla: sin botones para editar.</span>';
+    const a = document.createElement("a");
+    a.className = "btn sm";
+    a.textContent = "Salir de la vista";
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      location.href = `${API}${location.hash}`;
+    });
+    a.href = API;
+    f.appendChild(a);
+    document.body.prepend(f);
+  }
   // «← Mis clientes» vuelve al inicio (lista de clientes, tu cuenta y, si eres administrador, el equipo);
   // «Salir» cierra la sesión.
   const volver = document.getElementById("volver");
@@ -113,7 +141,8 @@ async function refrescar() {
     cuentaMes: r.cuentaMes || {},
   };
   // Para los avisos «Conectar Instagram»: solo un administrador puede conectarla.
-  window.PLANIFICA.esAdmin = !!(r.navegacion && r.navegacion.es_admin);
+  window.PLANIFICA.esAdmin = !PREVIEW && !!(r.navegacion && r.navegacion.es_admin);
+  window.PLANIFICA.ads = r.ads || { presupuestos: {}, impulsos: [] };
   pintarCabecera();
   avisar();
 }
@@ -242,7 +271,7 @@ const db = {
 
 const user = {
   id: () => estado.yo,
-  can: (permiso) => (permiso === "data.write" ? estado.rol === "editor" : false),
+  can: (permiso) => (permiso === "data.write" ? estado.rol === "editor" && !PREVIEW : false),
   profiles: async (ids) =>
     Object.fromEntries(ids.map((id) => [id, { name: estado.nombres[id] || "" }])),
 };
@@ -318,4 +347,10 @@ window.claude = {
 document.getElementById("salir")?.addEventListener("click", async () => {
   await apiRaiz("/api/logout", { method: "POST" }).catch(() => {});
   location.replace(`${BASE}/`);
+});
+
+// «Ver como cliente» abre la misma vista (pestaña) en la que estás.
+window.addEventListener("hashchange", () => {
+  const v = document.getElementById("verCliente");
+  if (v) v.href = `${API}/preview${location.hash}`;
 });

@@ -141,9 +141,42 @@ CREATE TABLE IF NOT EXISTS redes_posts_dia (
 );
 `;
 
+// Ads: presupuesto mensual y posts impulsados (se registran a mano; origen/meta_ad_id dejan listo el paso a leerlos
+// desde Meta Ads). Ver src/ads.js.
+export const TABLAS_ADS = `
+CREATE TABLE IF NOT EXISTS ads_presupuestos (
+  cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  mes             TEXT NOT NULL,                 -- AAAA-MM
+  monto           REAL NOT NULL,                 -- USD
+  notas           TEXT,
+  actualizado_en  INTEGER NOT NULL,
+  actualizado_por TEXT,
+  PRIMARY KEY (cliente_id, mes)
+);
+
+CREATE TABLE IF NOT EXISTS ads_impulsos (
+  id              TEXT PRIMARY KEY,
+  cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  publicacion_id  TEXT NOT NULL REFERENCES publicaciones(id) ON DELETE CASCADE,
+  inicio          TEXT NOT NULL,                 -- AAAA-MM-DD; el gasto cuenta en el mes en que empieza
+  fin             TEXT,
+  gastado         REAL NOT NULL DEFAULT 0,       -- USD
+  objetivo        TEXT,                          -- mensajes | perfil | alcance
+  resultados      TEXT,                          -- JSON: alcance, clics, mensajes, visitas, seguidores
+  notas           TEXT,
+  origen          TEXT NOT NULL DEFAULT 'manual', -- manual | meta
+  meta_ad_id      TEXT,
+  creado_en       INTEGER NOT NULL,
+  creado_por      TEXT,
+  actualizado_en  INTEGER NOT NULL,
+  actualizado_por TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ads_impulsos_cliente ON ads_impulsos (cliente_id, inicio);
+`;
+
 export const asegurarEsquema = crearEsquema({
   base: ESQUEMA_BASE,
   testigo: "usuarios",
   columnas: COLUMNAS,
-  tablas: TABLAS_REDES,
+  tablas: TABLAS_REDES + TABLAS_ADS,
 });

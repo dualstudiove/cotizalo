@@ -549,7 +549,7 @@
   }
   function notices() {
     var h = "";
-    if (!S.canWrite) {
+    if (!S.canWrite && !(window.PLANIFICA && window.PLANIFICA.preview)) {
       h +=
         '<div class="note"><span>Solo lectura. Pide a un administrador acceso de editor para hacer cambios.</span></div>';
     }
@@ -749,6 +749,10 @@
     else render();
   }
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && S.impOpen) {
+      closeImp();
+      return;
+    }
     if (!stMenuEl) return;
     var items = Array.prototype.slice.call(stMenuEl.querySelectorAll("button")),
       i = items.indexOf(document.activeElement);
@@ -787,7 +791,7 @@
       '<div><div class="t"><a class="rlink" href="#post-' + esc(p.id) + '" draggable="false">' +
       (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a></div>" +
       '<div class="meta"><span class="tag">' + fIcon(p.format) + f.label + "</span>" +
-      (pl ? '<span class="pl">' + pl + "</span>" : "") + driveLink(p) + igSummary(p) + "</div></div>" +
+      (pl ? '<span class="pl">' + pl + "</span>" : "") + driveLink(p) + igSummary(p) + boostBadge(p) + "</div></div>" +
       stSelect(p) + "</div>";
   }
 
@@ -855,7 +859,7 @@
       esc(p.title || "Sin título") + '">' +
       '<span class="ct">' + (esc(p.title) || "Sin título") + "</span>" +
       '<span class="cm">' + (p.time ? "<em>" + esc(p.time) + "</em>" : "") + "<i>" +
-      fIcon(p.format) + f.label + "</i>" + (pl ? "<b>" + pl + "</b>" : "") + "</span>" +
+      fIcon(p.format) + f.label + "</i>" + (pl ? "<b>" + pl + "</b>" : "") + boostBadge(p, true) + "</span>" +
       '<span class="cs cs-' + st + '">' + stIcon(st) + esc(STATUS[st]) + "</span></a>";
   }
   function viewCal() {
@@ -1567,8 +1571,15 @@
     return tiles;
   }
   /** Para Rendimiento: las metas del mes o del trimestre, simplificadas. */
-  function goalsSummary(y, m0, quarter) {
+  function goalsSummary(y, m0, quarter, bare) {
     var tiles = goalTiles(y, m0, quarter), qn = Math.floor(m0 / 3);
+    if (bare) {
+      // Dentro de Rendimiento: la sección ya tiene su título y el botón «Ver objetivos».
+      return '<div class="card">' + (tiles.length
+        ? '<div class="gtiles">' + tiles.join("") + "</div>"
+        : '<p class="gv-empty">Este periodo no tiene metas con números.' + (S.canWrite ? " Defínelas en la pestaña Objetivos." : "") + "</p>") +
+        "</div>";
+    }
     var title = quarter ? "Objetivos del trimestre T" + (qn + 1) : "Objetivos de " + MONTHS[m0].toLowerCase();
     var h = '<section class="card"><div class="card-h"><h3>' + title +
       '</h3><a class="btn sm" href="#objetivos">Ver objetivos</a></div>';
@@ -2384,6 +2395,7 @@
     return window.PLANIFICA.base + "/admin?instagram=" + encodeURIComponent(window.PLANIFICA.cliente);
   }
   function igConnectNotice(texto, compacto) {
+    if (!S.canWrite) return ""; // aviso interno: ni el cliente ni la vista del cliente lo ven
     var c = igCon(), roto = c && c.estado === "error";
     var titulo = roto ? "Hay que volver a conectar Instagram" : "Conecta Instagram";
     var cuerpo = roto
@@ -2637,13 +2649,15 @@
     }
     return null;
   }
-  function deltaHtml(cur, prev, label) {
+  /** invert: en costos, bajar es mejorar (verde). */
+  function deltaHtml(cur, prev, label, invert) {
     if (cur == null || prev == null || prev === 0) {
       return '<span class="kd">Aún sin datos para comparar</span>';
     }
     var pct = Math.round((cur - prev) / Math.abs(prev) * 100);
     var arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "=";
-    return '<span class="kd' + (pct > 0 ? " up" : pct < 0 ? " down" : "") + '">' + arrow + " " +
+    var good = invert ? pct < 0 : pct > 0, bad = invert ? pct > 0 : pct < 0;
+    return '<span class="kd' + (good ? " up" : bad ? " down" : "") + '">' + arrow + " " +
       Math.abs(pct) + " % vs. " + label + "</span>";
   }
   function kpi(label, val, delta, hint) {
@@ -2654,7 +2668,7 @@
   /* Gráfico de línea de una sola serie (una escala, sin leyenda: el título la nombra). Con hover: línea guía,
      punto y valor del día. */
   var CHARTS = {};
-  function lineChart(id, title, pts) {
+  function lineChart(id, title, pts, bands) {
     // Tres gráficos por fila en escritorio, uno por fila en el teléfono: el tamaño de dibujo sigue al ancho real.
     var W = 380, H = 170, L = 44, R = 12, T = 12, B = 26;
     var vals = pts.filter(function (p) {
@@ -2706,8 +2720,14 @@
         (k === 0 ? "start" : k === 2 ? "end" : "middle") + '">' + esc(fmtShort(pts[i].dia)) + "</text>";
     });
     CHARTS[id] = { pts: pts, x: x, y: y, W: W, title: title };
+    var step = n > 1 ? (W - L - R) / (n - 1) : 0;
+    var bandSvg = (bands || []).map(function (bd) {
+      var x0 = Math.max(L, x(bd[0]) - step / 2), x1 = Math.min(W - R, x(bd[1]) + step / 2);
+      return '<rect class="band" x="' + x0.toFixed(1) + '" y="' + T + '" width="' + Math.max(2, x1 - x0).toFixed(1) +
+        '" height="' + (H - T - B) + '"/>';
+    }).join("");
     return '<div class="chart"><h4>' + title + '</h4><div class="cw"><svg viewBox="0 0 ' + W + " " + H +
-      '" role="img" aria-label="' + esc(title) + '" data-chart="' + id + '">' + grid + ticks +
+      '" role="img" aria-label="' + esc(title) + '" data-chart="' + id + '">' + bandSvg + grid + ticks +
       '<path class="ln" d="' + d + '"/><line class="cx" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) +
       '" hidden/><circle class="cd" r="4.5" cx="0" cy="0" hidden/>' +
       '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '"/></svg>' +
@@ -2816,36 +2836,434 @@
   function postDay(p, x) {
     return (x && x.publicado_en ? String(x.publicado_en).slice(0, 10) : "") || p.date || "";
   }
-  function viewRes() {
-    var h = notices() + monthBar();
-    h += '<div class="ptools"><div class="seg" role="group" aria-label="Red">' +
-      '<button type="button" data-act="resred" data-v="ig" aria-pressed="' + (S.resRed !== "tt") + '">Instagram</button>' +
-      '<button type="button" data-act="resred" data-v="tt" aria-pressed="' + (S.resRed === "tt") + '">TikTok</button></div>' +
-      '<div class="seg" role="group" aria-label="Periodo">' +
-      [["m", "Mes"], ["q", "Trimestre"]].map(function (x) {
-        return '<button type="button" data-act="resper" data-v="' + x[0] + '" aria-pressed="' +
-          ((S.resPer || "m") === x[0]) + '">' + x[1] + "</button>";
+  /* ---------- Ads (presupuesto e impulsos) ---------- */
+  // Llegan con /api/datos (conexion.js → window.PLANIFICA.ads). El gasto de un impulso cuenta en el mes en que empezó.
+  function ADS() {
+    return (window.PLANIFICA && window.PLANIFICA.ads) || { presupuestos: {}, impulsos: [] };
+  }
+  function fmtUsd(n) {
+    if (n == null || !isFinite(n)) return "–";
+    return fmtNum(n, Math.round(n * 100) % 100 === 0 ? 0 : 2) + " USD";
+  }
+  function monthsIn(desde, hasta) {
+    var out = [], y = Number(desde.slice(0, 4)), m = Number(desde.slice(5, 7)) - 1, end = hasta.slice(0, 7);
+    while (monthKey(y, m) <= end && out.length < 36) {
+      out.push(monthKey(y, m));
+      m++;
+      if (m > 11) {
+        m = 0;
+        y++;
+      }
+    }
+    return out;
+  }
+  function impulsosEn(desde, hasta) {
+    var a = desde.slice(0, 7), b = hasta.slice(0, 7);
+    return ADS().impulsos.filter(function (i) {
+      var k = i.inicio.slice(0, 7);
+      return k >= a && k <= b;
+    });
+  }
+  function impulsosDe(postId) {
+    return ADS().impulsos.filter(function (i) {
+      return i.publicacion_id === postId;
+    });
+  }
+  function adsTotals(list) {
+    var t = { n: list.length, gastado: 0 };
+    ["alcance", "clics", "mensajes", "visitas", "seguidores"].forEach(function (k) {
+      t[k] = null;
+    });
+    list.forEach(function (i) {
+      t.gastado += i.gastado || 0;
+      Object.keys(i.resultados || {}).forEach(function (k) {
+        if (k in t) t[k] = (t[k] || 0) + i.resultados[k];
+      });
+    });
+    return t;
+  }
+  function budgetIn(desde, hasta) {
+    var sum = 0, any = false;
+    monthsIn(desde, hasta).forEach(function (m) {
+      var b = ADS().presupuestos[m];
+      if (b) {
+        sum += b.monto;
+        any = true;
+      }
+    });
+    return any ? sum : null;
+  }
+  function costPer(g, n) {
+    return n ? g / n : null;
+  }
+  var OBJ_LABEL = { clics: "Clics a WhatsApp", mensajes: "Mensajes", perfil: "Visitas al perfil", alcance: "Alcance" };
+  var RES_LABEL = {
+    alcance: "Alcance",
+    clics: "Clics a WhatsApp",
+    mensajes: "Mensajes",
+    visitas: "Visitas al perfil",
+    seguidores: "Seguidores",
+  };
+  var RES_CHIP = {
+    alcance: "alcance",
+    clics: "clics a WhatsApp",
+    mensajes: "mensajes",
+    visitas: "visitas al perfil",
+    seguidores: "seguidores",
+  };
+  /** Monto para las cifras grandes: el «USD» más pequeño, para que no se parta la línea. */
+  function usdBig(n) {
+    if (n == null || !isFinite(n)) return "–";
+    return fmtNum(n, Math.round(n * 100) % 100 === 0 ? 0 : 2) + ' <small class="cur">USD</small>';
+  }
+  var BOOST_SVG =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 1.75L3.5 9h4l-1 5.25L12.5 7h-4z"/></svg>';
+  /** Marca para la Lista y el Calendario: «Impulsado · 35 USD». */
+  function boostBadge(p, short) {
+    var list = impulsosDe(p.id);
+    if (!list.length) return "";
+    var g = adsTotals(list).gastado;
+    return '<span class="boost" title="Impulsado · ' + esc(fmtUsd(g)) + '">' + BOOST_SVG +
+      (short ? "" : "Impulsado · " + esc(fmtUsd(g))) + "</span>";
+  }
+  function impDates(i) {
+    return fmtShort(i.inicio) + (i.fin ? " – " + fmtShort(i.fin) : " · en curso");
+  }
+  function impCard(i) {
+    var p = S.posts.get(i.publicacion_id) || { id: i.publicacion_id, title: "", format: "reel" },
+      x = igMet(p), r = i.resultados || {}, cpc = costPer(i.gastado, r.clics);
+    var chips = ["alcance", "clics", "mensajes", "visitas", "seguidores"].filter(function (k) {
+      return r[k] != null;
+    }).map(function (k) {
+      return '<span class="rchip"><b>' + fmtNum(r[k]) + "</b> " + RES_CHIP[k] + "</span>";
+    }).join("");
+    return '<div class="imp">' + thumbHtml(p, x, "tthumb") + '<div class="imp-b"><a href="#post-' + esc(p.id) + '">' +
+      (p.title ? esc(p.title) : "<em>Sin título</em>") + '</a><div class="meta"><span class="mt">' + esc(impDates(i)) + "</span>" +
+      (i.objetivo ? '<span class="mt">· Objetivo: ' + esc(OBJ_LABEL[i.objetivo] || i.objetivo) + "</span>" : "") +
+      "</div>" + (chips ? '<div class="rchips">' + chips + "</div>" : '<p class="mut">Aún sin resultados anotados.</p>') +
+      (i.notas ? '<p class="mut imp-n">' + esc(i.notas) + "</p>" : "") + '</div><div class="imp-v"><b>' + fmtUsd(i.gastado) + "</b>" +
+      (cpc != null ? "<span>" + esc(fmtUsd(cpc)) + " por clic</span>" : "") +
+      (S.canWrite ? '<button class="btn sm ghost" type="button" data-act="impedit" data-id="' + esc(i.id) + '">Editar</button>' : "") +
+      "</div></div>";
+  }
+  /** Barra del presupuesto: gastado y saldo, con aviso al 80 % y en rojo si se pasó. */
+  function budgetBlock(r) {
+    var b = budgetIn(r.desde, r.hasta), t = adsTotals(impulsosEn(r.desde, r.hasta)),
+      pct = b ? t.gastado / b * 100 : null, mes = monthKey(S.cy, S.cm);
+    var cls = pct == null ? "" : pct > 100 ? " over" : pct >= 80 ? " warn" : "";
+    if (S.budEdit && !resQ()) {
+      var cur = ADS().presupuestos[mes] || {};
+      return '<div class="budget edit"><div class="r2"><div class="fld"><label for="budMonto">Presupuesto de ' +
+        MONTHS[S.cm].toLowerCase() + ' (USD)</label><input id="budMonto" class="in" type="text" inputmode="decimal" placeholder="150" value="' +
+        esc(cur.monto != null ? valStr(cur.monto) : "") + '" autocomplete="off"></div><div class="fld"><label for="budNotas">Nota (opcional)</label><input id="budNotas" class="in" type="text" placeholder="Ej. aprobaron 50 USD extra el 12 nov" value="' +
+        esc(cur.notas || "") + '" autocomplete="off"></div></div><div class="acts"><button class="btn sm" type="button" data-act="budcancel">Cancelar</button><button class="btn sm primary" type="button" data-act="budsave">Guardar</button></div></div>';
+    }
+    var notas = resQ() ? "" : ((ADS().presupuestos[mes] || {}).notas || "");
+    return '<div class="budget' + cls + '"><div class="bud-h"><div><span class="kl">Invertido' + (resQ() ? " en el trimestre" : "") + "</span><div><b>" +
+      usdBig(t.gastado) + "</b><span> de " + (b != null ? fmtUsd(b) : "– (sin presupuesto)") + "</span></div></div>" +
+      (b != null
+        ? '<span class="bud-s">' + (t.gastado <= b ? "Quedan " + fmtUsd(b - t.gastado) : "Se pasó por " + fmtUsd(t.gastado - b)) + "</span>"
+        : "") +
+      (S.canWrite && !resQ()
+        ? '<button class="btn sm ghost" type="button" data-act="budedit">' + (b != null ? "Cambiar presupuesto" : "Definir presupuesto") + "</button>"
+        : "") + "</div>" +
+      '<div class="bud-bar" aria-hidden="true"><i style="width:' + Math.min(100, pct || 0).toFixed(1) + '%"></i></div>' +
+      (pct != null && pct >= 80
+        ? '<p class="bud-w">' + (pct > 100 ? "Se pasó del presupuesto (" + Math.round(pct) + " %)." : "Va en el " + Math.round(pct) + " % del presupuesto.") + "</p>"
+        : "") +
+      (notas ? '<p class="mut">' + esc(notas) + "</p>" : "") +
+      (resQ() && S.canWrite ? '<p class="mut">El presupuesto se define por mes: cámbialo en la vista de cada mes.</p>' : "") +
+      "</div>";
+  }
+  function adsSection(r) {
+    var list = impulsosEn(r.desde, r.hasta), b = budgetIn(r.desde, r.hasta), t = adsTotals(list),
+      tp = adsTotals(impulsosEn(r.pDesde, r.pHasta));
+    var h = '<section class="rsec" id="sec-ads"><div class="rsec-h"><h2>Ads</h2>' +
+      (S.canWrite ? '<button class="btn sm primary" type="button" data-act="impnew">+ Registrar impulso</button>' : "") + "</div>";
+    if (!list.length && b == null && !S.budEdit) {
+      return h + '<div class="card"><div class="empty" style="border:0;padding:16px 8px"><h3>' +
+        (S.canWrite ? "Registra la inversión en ads de este " + (resQ() ? "trimestre" : "mes") : "Sin inversión en ads en este periodo") +
+        "</h3><p>" + (S.canWrite
+          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula el saldo y el costo por clic a WhatsApp."
+          : "Aquí verás el presupuesto de publicidad, lo gastado y los resultados de cada post impulsado.") + "</p>" +
+        (S.canWrite && !resQ()
+          ? '<div class="acts"><button class="btn primary" type="button" data-act="budedit">Definir el presupuesto del mes</button><button class="btn" type="button" data-act="impnew">Registrar impulso</button></div>'
+          : "") + "</div></div></section>";
+    }
+    h += '<div class="card ads-card">' + budgetBlock(r);
+    var cpc = costPer(t.gastado, t.clics), cpcP = costPer(tp.gastado, tp.clics),
+      cpm = costPer(t.gastado, t.mensajes), cpmP = costPer(tp.gastado, tp.mensajes);
+    h += '<div class="kpis ads-kpis">' +
+      kpi("Costo por clic a WhatsApp", usdBig(cpc), deltaHtml(cpc, cpcP, r.etiqueta, true),
+        t.clics != null ? fmtNum(t.clics) + " clics" : "Anota los clics de cada impulso.") +
+      kpi("Costo por mensaje", usdBig(cpm), deltaHtml(cpm, cpmP, r.etiqueta, true),
+        t.mensajes != null ? fmtNum(t.mensajes) + " mensajes" : "") +
+      kpi("Alcance pagado", t.alcance != null ? fmtNum(t.alcance) : "–", "",
+        t.alcance ? fmtUsd(t.gastado / t.alcance * 1000) + " por cada mil cuentas" : "") +
+      kpi("Posts impulsados", fmtNum(t.n), "", t.seguidores != null ? sgnNum(t.seguidores) + " seguidores con los impulsos" : "") +
+      "</div></div>";
+    if (list.length) {
+      var sk = S.impSort || "fecha";
+      list = list.slice().sort(function (a, c) {
+        if (sk === "costo") {
+          var ca = costPer(a.gastado, (a.resultados || {}).clics), cc = costPer(c.gastado, (c.resultados || {}).clics);
+          return (ca == null ? 1e9 : ca) - (cc == null ? 1e9 : cc);
+        }
+        return c.inicio.localeCompare(a.inicio);
+      });
+      h += '<div class="card"><div class="card-h"><h3>Posts impulsados</h3><div class="seg" role="group" aria-label="Ordenar por">' +
+        [["fecha", "Fecha"], ["costo", "Costo por clic"]].map(function (x) {
+          return '<button type="button" data-act="impsort" data-v="' + x[0] + '" aria-pressed="' + (sk === x[0]) + '">' + x[1] + "</button>";
+        }).join("") + '</div></div><div class="imps">' + list.map(impCard).join("") + "</div></div>";
+    }
+    h += adsHistory(r);
+    return h + "</section>";
+  }
+  /** Últimos 6 meses: presupuesto contra gastado y costo por clic a WhatsApp. */
+  function adsHistory(r) {
+    var end = dateObj(r.hasta), rows = [], max = 0;
+    for (var k = 5; k >= 0; k--) {
+      var d = new Date(end.getFullYear(), end.getMonth() - k, 1), mk = monthKey(d.getFullYear(), d.getMonth());
+      var b = (ADS().presupuestos[mk] || {}).monto, t = adsTotals(impulsosEn(mk + "-01", mk + "-31"));
+      if (b == null && !t.n) {
+        rows.push({ m: d.getMonth(), vacio: true });
+        continue;
+      }
+      max = Math.max(max, b || 0, t.gastado);
+      rows.push({ m: d.getMonth(), b: b, g: t.gastado, cpc: costPer(t.gastado, t.clics) });
+    }
+    if (!max) return "";
+    return '<div class="card"><h3>Últimos 6 meses</h3><div class="hist">' + rows.map(function (x) {
+      if (x.vacio) return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><span class="mut">Sin inversión</span></div>';
+      return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><div class="hbar"><i class="hb-b" style="width:' +
+        ((x.b || 0) / max * 100).toFixed(1) + '%"></i><i class="hb-g' + (x.b != null && x.g > x.b ? " over" : "") + '" style="width:' +
+        (x.g / max * 100).toFixed(1) + '%"></i></div><span class="hv">' + esc(fmtUsd(x.g)) +
+        (x.b != null ? ' <span class="mut">de ' + esc(fmtUsd(x.b)) + "</span>" : "") + "</span>" +
+        '<span class="hc">' + (x.cpc != null ? esc(fmtUsd(x.cpc)) + " por clic" : "") + "</span></div>";
+    }).join("") + '</div><p class="hint" style="min-height:0"><span><i class="hk hk-b"></i> presupuesto <i class="hk hk-g"></i> gastado</span></p></div>';
+  }
+
+  /* Ventana para registrar o editar un impulso (un post de la parrilla impulsado en Meta). */
+  function closeImp() {
+    var o = document.getElementById("impOv");
+    if (o) o.remove();
+    S.impOpen = null;
+  }
+  function openImp(id, postId) {
+    closeImp();
+    var i = id ? ADS().impulsos.find(function (x) {
+      return x.id === id;
+    }) : null;
+    if (id && !i) return;
+    S.impOpen = { id: id || null };
+    var sel = i ? i.publicacion_id : postId || "";
+    var posts = allPosts().filter(function (p) {
+      return p.id === sel || (p.status === "publicado" && p.date);
+    }).sort(function (a, b) {
+      return (b.date || "").localeCompare(a.date || "");
+    });
+    var r = (i && i.resultados) || {}, hoy = todayStr();
+    var ov = document.createElement("div");
+    ov.id = "impOv";
+    ov.className = "sheet-ov";
+    ov.innerHTML = '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="impT"><h2 id="impT">' +
+      (i ? "Editar impulso" : "Registrar impulso") + "</h2>" +
+      '<div class="fld"><label for="imp-post">Post impulsado</label><select id="imp-post" class="in"><option value="">Elige un post publicado…</option>' +
+      posts.map(function (p) {
+        return '<option value="' + esc(p.id) + '"' + (p.id === sel ? " selected" : "") + ">" +
+          esc((p.date ? fmtShort(p.date) + " · " : "") + (p.title || "Sin título")) + "</option>";
+      }).join("") + "</select></div>" +
+      '<div class="r2"><div class="fld"><label for="imp-ini">Empezó</label><input id="imp-ini" class="in" type="date" value="' +
+      esc(i ? i.inicio : hoy) + '"></div><div class="fld"><label for="imp-fin">Terminó <span class="mut">(vacío si sigue activo)</span></label><input id="imp-fin" class="in" type="date" value="' +
+      esc(i && i.fin ? i.fin : "") + '"></div></div>' +
+      '<div class="r2"><div class="fld"><label for="imp-gas">Gastado (USD)</label><input id="imp-gas" class="in" type="text" inputmode="decimal" placeholder="35,00" value="' +
+      esc(i ? valStr(i.gastado) : "") + '" autocomplete="off"></div><div class="fld"><label for="imp-obj">Objetivo en Meta <span class="mut">(opcional)</span></label><select id="imp-obj" class="in"><option value="">—</option>' +
+      Object.keys(OBJ_LABEL).map(function (k) {
+        return '<option value="' + k + '"' + (i && i.objetivo === k ? " selected" : "") + ">" + OBJ_LABEL[k] + "</option>";
+      }).join("") + "</select></div></div>" +
+      '<p class="lbl" style="margin-top:4px">Resultados según Meta <span class="mut">(los que tengas; se pueden completar después)</span></p><div class="imp-grid">' +
+      ["clics", "mensajes", "alcance", "visitas", "seguidores"].map(function (k) {
+        return '<div class="fld"><label for="imp-r-' + k + '">' + RES_LABEL[k] + '</label><input id="imp-r-' + k +
+          '" class="in" type="text" inputmode="numeric" value="' + esc(r[k] != null ? String(r[k]) : "") + '" autocomplete="off"></div>';
       }).join("") + "</div>" +
-      (igCon() && S.resRed !== "tt"
-        ? '<span class="res-upd"><span class="muted">' + esc(igLastTxt()) + "</span>" + igUpdButton() + "</span>"
-        : "") + "</div>";
-    var c = igCon(), r0 = resRange(), m0 = resQ() ? Math.floor(S.cm / 3) * 3 : S.cm;
-    if (S.resRed === "tt") {
-      main.innerHTML = h + '<div class="connect"><span class="cn-ic">' + TT_SVG + '</span><div class="cn-b"><b>Pronto: métricas de TikTok</b>' +
-        "<p>Las reproducciones, likes, comentarios y compartidos de cada video, y los seguidores de la cuenta, en esta misma pestaña. Mientras tanto, las metas de TikTok se escriben a mano en Objetivos.</p></div></div>" +
-        goalsSummary(S.cy, m0, resQ()) + planVsReal(r0, false);
+      '<div class="fld"><label for="imp-notas">Notas <span class="mut">(las ve el cliente)</span></label><textarea id="imp-notas" class="in" rows="2" placeholder="Ej. segmentado a Caracas, 25-55 años">' +
+      esc(i ? i.notas : "") + "</textarea></div>" +
+      '<p class="imp-err" id="impErr" hidden></p><div class="acts">' +
+      (i ? '<button class="btn danger" type="button" data-act="impdel">Eliminar</button><span class="grow"></span>' : '<span class="grow"></span>') +
+      '<button class="btn" type="button" data-act="impclose">Cancelar</button><button class="btn primary" type="button" data-act="impsave">' +
+      (i ? "Guardar" : "Registrar") + "</button></div></div>";
+    ov.addEventListener("mousedown", function (e) {
+      if (e.target === ov) closeImp();
+    });
+    document.body.appendChild(ov);
+    var f = ov.querySelector(sel ? "#imp-gas" : "#imp-post");
+    if (f) f.focus();
+  }
+  function impErr(msg) {
+    var e = document.getElementById("impErr");
+    if (e) {
+      e.textContent = msg;
+      e.hidden = false;
+    }
+  }
+  function saveImp(btn) {
+    var st = S.impOpen;
+    if (!st) return;
+    var res = {}, bad = null;
+    ["clics", "mensajes", "alcance", "visitas", "seguidores"].forEach(function (k) {
+      var v = document.getElementById("imp-r-" + k).value.trim();
+      if (!v) return;
+      var n = parseNum(v);
+      if (n == null || n < 0 || Math.round(n) !== n) bad = RES_LABEL[k];
+      else res[k] = n;
+    });
+    if (bad) return impErr("«" + bad + "» debe ser un número entero.");
+    var gas = parseNum(document.getElementById("imp-gas").value);
+    if (gas == null) return impErr("Escribe cuánto se gastó (en USD).");
+    var body = {
+      publicacion_id: document.getElementById("imp-post").value,
+      inicio: document.getElementById("imp-ini").value,
+      fin: document.getElementById("imp-fin").value || null,
+      gastado: gas,
+      objetivo: document.getElementById("imp-obj").value || null,
+      resultados: res,
+      notas: document.getElementById("imp-notas").value,
+    };
+    if (!body.publicacion_id) return impErr("Elige el post que se impulsó.");
+    btn.disabled = true;
+    window.PLANIFICA.api(st.id ? "/api/ads/impulsos/" + encodeURIComponent(st.id) : "/api/ads/impulsos", {
+      method: st.id ? "PATCH" : "POST",
+      body: body,
+    }).then(function () {
+      closeImp();
+      toast(st.id ? "Impulso actualizado" : "Impulso registrado");
+      return window.PLANIFICA.refrescar();
+    }, function (e) {
+      btn.disabled = false;
+      impErr(e.message || "No se pudo guardar.");
+    }).then(function () {
+      if (S.view === "detalle") paintDetail();
+      else render();
+    });
+  }
+  function deleteImp(btn) {
+    var st = S.impOpen;
+    if (!st || !st.id) return;
+    if (btn.dataset.sure !== "1") {
+      btn.dataset.sure = "1";
+      btn.textContent = "¿Seguro? Eliminar";
       return;
     }
+    btn.disabled = true;
+    window.PLANIFICA.api("/api/ads/impulsos/" + encodeURIComponent(st.id), { method: "DELETE" }).then(function () {
+      closeImp();
+      toast("Impulso eliminado");
+      return window.PLANIFICA.refrescar();
+    }, function (e) {
+      btn.disabled = false;
+      impErr(e.message || "No se pudo eliminar.");
+    }).then(function () {
+      if (S.view === "detalle") paintDetail();
+      else render();
+    });
+  }
+  function saveBudget(btn) {
+    var raw = document.getElementById("budMonto").value.trim(), n = raw ? parseNum(raw) : null;
+    if (raw && (n == null || n < 0)) {
+      toast("El presupuesto debe ser un número.");
+      return;
+    }
+    btn.disabled = true;
+    window.PLANIFICA.api("/api/ads/presupuestos/" + monthKey(S.cy, S.cm), {
+      method: "PUT",
+      body: { monto: n, notas: document.getElementById("budNotas").value },
+    }).then(function () {
+      S.budEdit = false;
+      return window.PLANIFICA.refrescar();
+    }, function (e) {
+      btn.disabled = false;
+      toast(e.message || "No se pudo guardar.");
+    }).then(function () {
+      render();
+    });
+  }
+  /** Tarjeta «Impulsos» en el detalle del post: lo pagado al lado de lo orgánico. */
+  function adsCardBody(p) {
+    var list = impulsosDe(p.id), x = igMet(p);
+    if (!list.length) {
+      return '<p class="muted">' + (p.status === "publicado"
+        ? "Si este post se impulsa en Meta, regístralo aquí para ver lo gastado y sus resultados."
+        : "Cuando se publique y se impulse, regístralo aquí.") + "</p>";
+    }
+    var t = adsTotals(list), org = x && x.m ? x.m.alcance : null;
+    var h = '<div class="pvr two"><div><b>' + fmtUsd(t.gastado) + "</b><span>invertido</span></div><div><b>" +
+      (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp" +
+      (t.clics ? " · " + esc(fmtUsd(t.gastado / t.clics)) + " c/u" : "") + "</span></div></div>";
+    if (t.alcance != null || org != null) {
+      h += '<p class="muted small">Alcance pagado <b>' + (t.alcance != null ? fmtNum(t.alcance) : "–") + "</b> · orgánico <b>" +
+        (org != null ? fmtNum(org) : "–") + "</b></p>";
+    }
+    return h + '<div class="imps">' + list.slice().sort(function (a, b) {
+      return b.inicio.localeCompare(a.inicio);
+    }).map(impCard).join("") + "</div>";
+  }
+  function paintAds(p) {
+    var card = $("#adsCard");
+    if (!card) return;
+    var list = impulsosDe(p.id);
+    card.hidden = !list.length && !(S.canWrite && p.status === "publicado");
+    var body = adsCardBody(p), b = $("#adsBody");
+    if (b.dataset.sig !== body) {
+      b.innerHTML = body;
+      b.dataset.sig = body;
+    }
+    var act = S.canWrite ? '<button class="btn sm" type="button" data-act="impnew" data-post="' + esc(p.id) + '">+ Registrar impulso</button>' : "";
+    var a = $("#adsAct");
+    if (a.dataset.sig !== act) {
+      a.innerHTML = act;
+      a.dataset.sig = act;
+    }
+  }
+
+  /** Rendimiento, por secciones: Resumen · Objetivos · Ads · Contenido · Audiencia y evolución. */
+  function rsec(id, title, inner, extra) {
+    return '<section class="rsec" id="' + id + '"><div class="rsec-h"><h2>' + title + "</h2>" + (extra || "") + "</div>" +
+      inner + "</section>";
+  }
+  function resNav(items) {
+    return '<nav class="secnav" aria-label="Secciones de Rendimiento">' + items.map(function (x) {
+      return '<button type="button" data-act="secgo" data-v="' + x[0] + '">' + x[1] + "</button>";
+    }).join("") + "</nav>";
+  }
+  /** Media de likes por post: los posts publicados entre a y b (una media no se recorta al mismo tramo de días). */
+  function likesAvg(a, b) {
+    var n = 0, t = 0;
+    allPosts().forEach(function (p) {
+      var x = igMet(p), day = postDay(p, x);
+      if (hasIg(p) && x && x.m && x.m.likes != null && day >= a && day <= b) {
+        n++;
+        t += x.m.likes;
+      }
+    });
+    return n ? { v: t / n, n: n } : null;
+  }
+  function resumen(r, L, c) {
+    var t = adsTotals(impulsosEn(r.desde, r.hasta)), tp = adsTotals(impulsosEn(r.pDesde, r.pHasta)),
+      b = budgetIn(r.desde, r.hasta);
+    var inversion = kpi("Inversión en ads", usdBig(t.gastado), "",
+      b != null ? "de " + fmtUsd(b) + (t.gastado <= b ? " · quedan " + fmtUsd(b - t.gastado) : " · se pasó") : "Sin presupuesto definido");
+    var clics = kpi("Clics a WhatsApp", t.clics != null ? fmtNum(t.clics) : "–", deltaHtml(t.clics, tp.clics, r.etiqueta),
+      t.clics ? fmtUsd(t.gastado / t.clics) + " por clic" : "de los posts impulsados");
     if (!c) {
-      // Sin Instagram: lo que no depende de la cuenta (objetivos y plan) sigue a la vista.
-      main.innerHTML = h + igConnectNotice("Verás el alcance, la media de likes, la evolución de seguidores, los mejores posts y la mejor hora para publicar. Las cifras se guardan desde el día en que se conecta.") +
-        goalsSummary(S.cy, m0, resQ()) + planVsReal(r0, false);
-      return;
+      var planned = allPosts().filter(function (p) {
+        return p.date && p.date >= r.desde && p.date <= r.hasta;
+      });
+      return '<div class="kpis">' + inversion + clics +
+        kpi("Posts publicados", fmtNum(planned.filter(function (p) {
+          return p.status === "publicado";
+        }).length), "", "de " + plural(planned.length, "planificado", "planificados")) + "</div>";
     }
-    if (c.estado === "error") h += igConnectNotice("");
-    var r = resRange(), L = resLoad(r);
-    var dias = (L.data && L.data.dias) || [];
-    // Indicadores
+    var dias = (L && L.data && L.data.dias) || [];
     var fEnd = lastFollowers(dias, r.desde, r.hasta),
       fPrevEnd = lastFollowers(dias, r.pDesde, r.pHasta),
       fStart = fPrevEnd != null ? fPrevEnd : firstFollowers(dias, r.desde, r.hasta),
@@ -2854,58 +3272,24 @@
       fPrevCut = lastFollowers(dias, r.pDesde, r.cpHasta),
       gainedPrev = fPrevCut != null && fPrevStart != null ? fPrevCut - fPrevStart : null;
     var reach = sumBy(dias, "alcance", r.desde, r.hasta), reachP = sumBy(dias, "alcance", r.pDesde, r.cpHasta),
-      views = sumBy(dias, "reproducciones", r.desde, r.hasta), viewsP = sumBy(dias, "reproducciones", r.pDesde, r.cpHasta),
       inter = sumBy(dias, "interacciones", r.desde, r.hasta), interP = sumBy(dias, "interacciones", r.pDesde, r.cpHasta);
-    var rate = reach ? inter / reach * 100 : null, rateP = reachP ? interP / reachP * 100 : null;
-    // Media de likes por post: los posts publicados en el periodo contra los de todo el periodo anterior
-    // (una media no crece con los días, así que no se recorta al mismo tramo).
-    function likesAvg(a, b) {
-      var n = 0, t = 0;
-      allPosts().forEach(function (p) {
-        var x = igMet(p), day = postDay(p, x);
-        if (hasIg(p) && x && x.m && x.m.likes != null && day >= a && day <= b) {
-          n++;
-          t += x.m.likes;
-        }
-      });
-      return n ? { v: t / n, n: n } : null;
-    }
+    var rate = reach ? inter / reach * 100 : null;
     var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.pHasta);
-    h += '<section class="kpis">' +
+    var h = '<div class="kpis">' +
       kpi("Seguidores ganados", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
         fEnd != null ? fmtNum(fEnd) + " en total" : "") +
-      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta), "Cuentas que vieron tu contenido") +
+      kpi("Alcance", fmtNum(reach), deltaHtml(reach, reachP, r.etiqueta),
+        "Cuentas que vieron tu contenido" + (t.alcance ? " · " + fmtNum(t.alcance) + " con ads" : "")) +
       kpi("Media de likes", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
-        la ? "por post, de " + plural(la.n, "post publicado", "posts publicados") : "Pega el link de los posts publicados.") +
-      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta), "likes, comentarios, compartidos y guardados") +
-      kpi("Tasa de interacción", rate == null ? "–" : fmtNum(rate, 1) + " %", deltaHtml(rate, rateP, r.etiqueta),
-        "interacciones ÷ alcance") +
-      "</section>";
-    h += goalsSummary(S.cy, resQ() ? Math.floor(S.cm / 3) * 3 : S.cm, resQ());
-    if (L.loading) h += '<p class="muted">Cargando las cifras de la cuenta…</p>';
-    if (L.error) h += '<p class="warn-note">' + esc(L.error) + "</p>";
-    // Evolución
-    var days = [], d0 = dateObj(r.desde), d1 = dateObj(r.hasta), today = todayStr();
-    for (var d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
-      var k = ymd(d.getFullYear(), d.getMonth(), d.getDate());
-      if (k > today) break;
-      days.push(k);
-    }
-    var byDay = {};
-    dias.forEach(function (x) {
-      byDay[x.dia] = x;
-    });
-    h += '<section class="card"><h3>Evolución</h3><div class="charts">' +
-      lineChart("seg", "Seguidores", days.map(function (k) {
-        return { dia: k, v: byDay[k] && typeof byDay[k].seguidores === "number" ? byDay[k].seguidores : null };
-      })) +
-      lineChart("alc", "Alcance por día", days.map(function (k) {
-        return { dia: k, v: byDay[k] && typeof byDay[k].alcance === "number" ? byDay[k].alcance : null };
-      })) +
-      lineChart("int", "Interacciones por día", days.map(function (k) {
-        return { dia: k, v: byDay[k] && typeof byDay[k].interacciones === "number" ? byDay[k].interacciones : null };
-      })) + "</div></section>";
-    // Posts del periodo
+        la ? "por post, de " + plural(la.n, "post publicado", "posts publicados") : (S.canWrite ? "Pega el link de los posts publicados." : "")) +
+      kpi("Interacciones", fmtNum(inter), deltaHtml(inter, interP, r.etiqueta),
+        rate != null ? "Tasa: " + fmtNum(rate, 1) + " % del alcance" : "") +
+      clics + inversion + "</div>";
+    if (L && L.loading) h += '<p class="muted">Cargando las cifras de la cuenta…</p>';
+    if (L && L.error) h += '<p class="warn-note">' + esc(L.error) + "</p>";
+    return h;
+  }
+  function contenido(r) {
     var inPer = allPosts().filter(function (p) {
       var x = igMet(p), day = postDay(p, x);
       return hasIg(p) && day >= r.desde && day <= r.hasta;
@@ -2918,42 +3302,46 @@
     var top = withM.slice().sort(function (a, b) {
       return (igMet(b).m[sk] || 0) - (igMet(a).m[sk] || 0);
     }).slice(0, 10);
-    h += '<section class="card"><div class="card-h"><h3>Top posts</h3><div class="seg" role="group" aria-label="Ordenar por">' +
+    var h = '<div class="card"><div class="card-h"><h3>Top posts</h3><div class="seg" role="group" aria-label="Ordenar por">' +
       SORT_KEYS.map(function (x) {
         return '<button type="button" data-act="ressort" data-v="' + x[0] + '" aria-pressed="' + (sk === x[0]) +
           '">' + x[1] + "</button>";
       }).join("") + "</div></div>";
     if (!top.length) {
-      h += '<p class="gv-empty">Ningún post de este periodo tiene métricas todavía. Pega el link de Instagram en cada post publicado.</p>';
+      h += '<p class="gv-empty">Ningún post de este periodo tiene métricas todavía.' +
+        (S.canWrite ? " Pega el link de Instagram en cada post publicado." : "") + "</p>";
     } else {
       h += '<ol class="toplist">' + top.map(function (p, i) {
-        var x = igMet(p), m = x.m;
+        var x = igMet(p), m = x.m, paid = adsTotals(impulsosDe(p.id));
         return '<li><span class="tn">' + (i + 1) + "</span>" + thumbHtml(p, x, "tthumb") +
           '<div class="tt"><a href="#post-' + esc(p.id) + '">' + (p.title ? esc(p.title) : "<em>Sin título</em>") +
           '</a><div class="meta"><span class="tag">' + fIcon(p.format) + (FORMATS[p.format] || FORMATS.reel).label +
-          '</span><span class="mt">' + esc(fmtShort(postDay(p, x))) + "</span></div></div>" +
-          '<div class="tv"><b>' + fmtNum(m[sk]) + "</b><span>" + MET[sk].toLowerCase() + "</span></div></li>";
+          '</span><span class="mt">' + esc(fmtShort(postDay(p, x))) + "</span>" + boostBadge(p) + "</div></div>" +
+          '<div class="tv"><b>' + fmtNum(m[sk]) + "</b><span>" + MET[sk].toLowerCase() + "</span>" +
+          (sk === "alcance" && paid.alcance ? '<span class="paid">+' + fmtNum(paid.alcance) + " con ads</span>" : "") +
+          "</div></li>";
       }).join("") + "</ol>";
     }
-    h += "</section>";
-    // Por formato y plan contra realidad
+    h += "</div>";
     var fm = {};
     withM.forEach(function (p) {
       var f = p.format || "reel", m = igMet(p).m;
-      var o = fm[f] || (fm[f] = { n: 0, alcance: 0, interacciones: 0, guardados: 0, likes: 0, reproducciones: 0, nr: 0 });
+      var o = fm[f] || (fm[f] = { n: 0, alcance: 0, interacciones: 0, guardados: 0, likes: 0 });
       o.n++;
       o.likes += m.likes || 0;
       o.alcance += m.alcance || 0;
       o.interacciones += m.interacciones || 0;
       o.guardados += m.guardados || 0;
-      if (m.reproducciones != null) {
-        o.reproducciones += m.reproducciones;
-        o.nr++;
-      }
     });
     var fRows = FORMAT_ORDER.filter(function (f) {
       return fm[f];
     });
+    var winner = null;
+    if (fRows.length > 1) {
+      fRows.forEach(function (f) {
+        if (!winner || fm[f].interacciones / fm[f].n > fm[winner].interacciones / fm[winner].n) winner = f;
+      });
+    }
     var planned = allPosts().filter(function (p) {
         return hasIg(p) && p.date && p.date >= r.desde && p.date <= r.hasta;
       }),
@@ -2963,18 +3351,11 @@
       linked = published.filter(function (p) {
         var x = igMet(p);
         return x && x.encontrado;
+      }),
+      missing = published.filter(function (p) {
+        var x = igMet(p);
+        return !(x && x.encontrado);
       });
-    // Ganador: el formato con la mayor media de interacciones por post (solo si hay más de uno para comparar).
-    var winner = null;
-    if (fRows.length > 1) {
-      fRows.forEach(function (f) {
-        if (!winner || fm[f].interacciones / fm[f].n > fm[winner].interacciones / fm[winner].n) winner = f;
-      });
-    }
-    var missing = published.filter(function (p) {
-      var x = igMet(p);
-      return !(x && x.encontrado);
-    });
     h += '<div class="grid2 res2"><section class="card"><h3>Por formato</h3>' +
       (fRows.length
         ? '<div class="tw"><table class="ftab"><thead><tr><th>Formato</th><th>Posts</th><th>Media de alcance</th><th>Media de likes</th><th>Media de interacciones</th><th>Media de guardados</th></tr></thead><tbody>' +
@@ -2991,23 +3372,91 @@
             : "")
         : '<p class="gv-empty">Se calcula con los posts que tienen métricas.</p>') +
       '</section><section class="card"><h3>Plan contra realidad</h3><div class="pvr">' +
-      '<div><b>' + planned.length + "</b><span>planificados</span></div>" +
-      '<div><b>' + published.length + "</b><span>publicados</span></div>" +
-      '<div><b>' + linked.length + "</b><span>con link de Instagram</span></div></div>" +
-      (missing.length
+      "<div><b>" + planned.length + "</b><span>planificados</span></div>" +
+      "<div><b>" + published.length + "</b><span>publicados</span></div>" +
+      "<div><b>" + linked.length + "</b><span>con link de Instagram</span></div></div>" +
+      (missing.length && S.canWrite
         ? '<p class="muted small" style="margin-top:4px">' + (missing.length === 1 ? "Falta el link de este post publicado:" : "Falta el link de estos posts publicados:") + "</p>" +
           '<ul class="missing">' + missing.sort(cmp).map(function (p) {
             var x = igMet(p);
             return '<li><div><a href="#post-' + esc(p.id) + '">' + (p.title ? esc(p.title) : "<em>Sin título</em>") +
               '</a><span class="mt">' + esc(p.date ? fmtShort(p.date) : "") +
-              (x && x.error ? " · " + esc(x.error) : "") + '</span></div><a class="btn sm" href="#post-' + esc(p.id) + '">' +
-              (S.canWrite ? "Abrir y pegar link" : "Abrir") + "</a></li>";
+              (x && x.error ? " · " + esc(x.error) : "") + '</span></div><a class="btn sm" href="#post-' + esc(p.id) + '">Abrir y pegar link</a></li>';
           }).join("") + "</ul>"
-        : (published.length ? '<p class="muted small">Todos los posts publicados tienen su link.</p>' : "")) +
+        : "") +
       "</section></div>";
-    // Mejor día y hora
-    h += '<section class="card"><h3>Mejor día y hora para publicar</h3>' +
-      heatmap(L.data && L.data.audiencia) + "</section>";
+    return h;
+  }
+  function audiencia(r, L) {
+    var dias = (L && L.data && L.data.dias) || [];
+    var days = [], d0 = dateObj(r.desde), d1 = dateObj(r.hasta), today = todayStr();
+    for (var d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+      var k = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+      if (k > today) break;
+      days.push(k);
+    }
+    var byDay = {};
+    dias.forEach(function (x) {
+      byDay[x.dia] = x;
+    });
+    // Franjas: los días en que hubo al menos un post impulsado activo.
+    var bands = [], on = days.map(function (k) {
+      return ADS().impulsos.some(function (i) {
+        return i.inicio <= k && (i.fin || today) >= k;
+      });
+    });
+    for (var j = 0; j < on.length; j++) {
+      if (!on[j]) continue;
+      var a = j;
+      while (j + 1 < on.length && on[j + 1]) j++;
+      bands.push([a, j]);
+    }
+    function serie(key) {
+      return days.map(function (k) {
+        return { dia: k, v: byDay[k] && typeof byDay[k][key] === "number" ? byDay[k][key] : null };
+      });
+    }
+    return '<div class="card"><div class="charts">' +
+      lineChart("seg", "Seguidores", serie("seguidores"), bands) +
+      lineChart("alc", "Alcance por día", serie("alcance"), bands) +
+      lineChart("int", "Interacciones por día", serie("interacciones"), bands) + "</div>" +
+      (bands.length ? '<p class="hint" style="min-height:0"><span><i class="hk hk-band"></i> días con un post impulsado</span></p>' : "") +
+      '</div><div class="card"><h3>Mejor día y hora para publicar</h3>' + heatmap(L && L.data && L.data.audiencia) + "</div>";
+  }
+  function viewRes() {
+    var h = notices() + monthBar();
+    var tt = S.resRed === "tt", c = igCon(), r = resRange(), q = resQ(), m0 = q ? Math.floor(S.cm / 3) * 3 : S.cm;
+    h += '<div class="ptools"><div class="seg" role="group" aria-label="Red">' +
+      '<button type="button" data-act="resred" data-v="ig" aria-pressed="' + !tt + '">Instagram</button>' +
+      '<button type="button" data-act="resred" data-v="tt" aria-pressed="' + tt + '">TikTok</button></div>' +
+      '<div class="seg" role="group" aria-label="Periodo">' +
+      [["m", "Mes"], ["q", "Trimestre"]].map(function (x) {
+        return '<button type="button" data-act="resper" data-v="' + x[0] + '" aria-pressed="' +
+          ((S.resPer || "m") === x[0]) + '">' + x[1] + "</button>";
+      }).join("") + "</div>" +
+      (c && !tt
+        ? '<span class="res-upd"><span class="muted">' + esc(igLastTxt()) + "</span>" + igUpdButton() + "</span>"
+        : "") + "</div>";
+    var objExtra = '<a class="btn sm" href="#objetivos">Ver objetivos</a>';
+    if (tt) {
+      main.innerHTML = h + '<div class="connect"><span class="cn-ic">' + TT_SVG + '</span><div class="cn-b"><b>Pronto: métricas de TikTok</b>' +
+        "<p>Las reproducciones, likes, comentarios y compartidos de cada video, y los seguidores de la cuenta, en esta misma pestaña. Mientras tanto, las metas de TikTok se escriben a mano en Objetivos.</p></div></div>" +
+        rsec("sec-obj", "Objetivos", goalsSummary(S.cy, m0, q, true), objExtra) +
+        rsec("sec-cont", "Contenido", planVsReal(r, false));
+      return;
+    }
+    var L = c ? resLoad(r) : null;
+    if (!c) {
+      h += igConnectNotice("Verás el alcance, la media de likes, la evolución de seguidores, los mejores posts y la mejor hora para publicar. Las cifras se guardan desde el día en que se conecta.");
+    } else if (c.estado === "error") h += igConnectNotice("");
+    var nav = [["sec-resumen", "Resumen"], ["sec-obj", "Objetivos"], ["sec-ads", "Ads"], ["sec-cont", "Contenido"]];
+    if (c) nav.push(["sec-aud", "Audiencia"]);
+    h += resNav(nav) +
+      rsec("sec-resumen", "Resumen", resumen(r, L, c)) +
+      rsec("sec-obj", "Objetivos", goalsSummary(S.cy, m0, q, true), objExtra) +
+      adsSection(r) +
+      rsec("sec-cont", "Contenido", c ? contenido(r) : planVsReal(r, false));
+    if (c) h += rsec("sec-aud", "Audiencia y evolución", audiencia(r, L));
     main.innerHTML = h;
   }
 
@@ -3059,6 +3508,7 @@
       '<div class="hint"><span id="cnt-tags"></span><button class="btn sm" type="button" data-act="copyfield" data-target="f-hashtags">Copiar hashtags</button></div></div>' +
       '</section>' +
       '<section class="card" id="igCard" hidden><div class="card-h"><h3>Métricas de Instagram</h3><span id="igAct"></span></div><div id="igBody"></div></section>' +
+      '<section class="card" id="adsCard" hidden><div class="card-h"><h3>Impulsos</h3><span id="adsAct"></span></div><div id="adsBody"></div></section>' +
       '</div><div class="col col-produccion">' +
       '<section class="card"><div class="card-h"><h3>Producción</h3><button class="sw" id="sw-shoot" type="button" role="switch" aria-checked="false" data-act="togshoot"><span class="trk"></span><span>Incluir en la pauta</span></button></div>' +
       '<p class="muted" id="shootHint"></p>' +
@@ -3319,6 +3769,7 @@
     paintFooter();
     $("#igLinkFld").hidden = !hasIg(p);
     paintIg(p);
+    paintAds(p);
     ensureThumbs();
   }
 
@@ -3525,6 +3976,42 @@
     if (!el) return;
     var act = el.dataset.act, p;
     switch (act) {
+      case "secgo":
+        var sec = document.getElementById(el.dataset.v);
+        if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+        break;
+      case "budedit":
+        S.budEdit = true;
+        render();
+        var bm = $("#budMonto");
+        if (bm) bm.focus();
+        break;
+      case "budcancel":
+        S.budEdit = false;
+        render();
+        break;
+      case "budsave":
+        saveBudget(el);
+        break;
+      case "impnew":
+        if (canW()) openImp(null, el.dataset.post || null);
+        break;
+      case "impedit":
+        if (canW()) openImp(el.dataset.id);
+        break;
+      case "impclose":
+        closeImp();
+        break;
+      case "impsave":
+        saveImp(el);
+        break;
+      case "impdel":
+        deleteImp(el);
+        break;
+      case "impsort":
+        S.impSort = el.dataset.v;
+        render();
+        break;
       case "resred":
         S.resRed = el.dataset.v;
         render();
