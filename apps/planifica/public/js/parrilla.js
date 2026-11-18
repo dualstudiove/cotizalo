@@ -2991,7 +2991,24 @@
         : "") +
       (notas ? '<p class="mut">' + esc(notas) + "</p>" : "") +
       (resQ() && S.canWrite ? '<p class="mut">El presupuesto se define por mes: cámbialo en la vista de cada mes.</p>' : "") +
-      "</div>";
+      budgetList(r) + "</div>";
+  }
+  /** En qué se invirtió: lista sencilla de los posts impulsados del periodo y su gasto (plegada al principio). */
+  function budgetList(r) {
+    var list = impulsosEn(r.desde, r.hasta).slice().sort(function (a, b) {
+      return b.inicio.localeCompare(a.inicio);
+    });
+    if (!list.length) return "";
+    var abierto = !!S.budOpen;
+    var h = '<button class="bud-tg" type="button" data-act="budtoggle" aria-expanded="' + abierto + '">' + CHEV_SVG +
+      "<span>" + (abierto ? "Ocultar" : "Ver") + " en qué se invirtió · " + plural(list.length, "post impulsado", "posts impulsados") +
+      "</span></button>";
+    if (!abierto) return h;
+    return h + '<ul class="bud-list">' + list.map(function (i) {
+      var p = S.posts.get(i.publicacion_id);
+      return '<li><a href="#post-' + esc(i.publicacion_id) + '">' + (p && p.title ? esc(p.title) : "<em>Sin título</em>") +
+        '</a><span class="mt">' + esc(impDates(i)) + "</span><b>" + esc(fmtUsd(i.gastado)) + "</b></li>";
+    }).join("") + "</ul>";
   }
 
   /** Lo logrado en el periodo según la cuenta: seguidores ganados o alcance sumado (de las cifras por mes). */
@@ -3194,6 +3211,7 @@
     }
     var focos = adsFocos(), conMetas = focos.length;
     if (!conMetas) focos = FOCOS_BASE;
+    h += budgetBlock(r);
     if (list.length) {
       h += '<div class="card"><div class="card-h"><h3>Lo que consiguieron los ads' +
         (conMetas ? " para las metas" : "") + '</h3><a class="btn sm ghost" href="#objetivos">' + (conMetas ? "Ver metas" : "Objetivos") + "</a></div>" +
@@ -3227,112 +3245,9 @@
           return impCard(i, best === i.id, focos, sk);
         }).join("") + "</div></div>";
     }
-    h += adsSplit(r, focos) + budgetBlock(r);
+
     return h + "</section>";
   }
-  /**
-   * Orgánico contra ads, meta por meta: para cada meta del trimestre, qué parte de lo logrado vino de los ads y
-   * qué parte fue orgánica. En el mes, una barra; en el trimestre, una por mes. Las medias se comparan con dos
-   * barras (posts impulsados contra los demás).
-   */
-  function splitMes(f, mk) {
-    var t = adsTotals(impulsosEn(mk + "-01", mk + "-31")), cm = (RD().cuentaMes.ig || {})[mk] || {};
-    var y = Number(mk.slice(0, 4)), mi = Number(mk.slice(5, 7)) - 1;
-    if (f.tipo === "ads") {
-      var ads = t[f.k], total = null, soloAds = false;
-      if (f.k === "seguidores" || f.k === "alcance") total = logradoCuenta(f.k, [mk]);
-      else if (f.m && srcOf(f.m, "ig").indexOf("ads_") !== 0) {
-        var qn = Math.floor(mi / 3), em = effM(f.m, "ig", y, qn), v = em.real && em.real[mi - qn * 3];
-        total = hasNum(v) ? Number(v) : null;
-      } else soloAds = true;
-      return { kind: "split", ads: ads, total: total, soloAds: soloAds };
-    }
-    var imp = {};
-    impulsosEn(mk + "-01", mk + "-31").forEach(function (i) {
-      imp[i.publicacion_id] = 1;
-    });
-    if (f.tipo === "post") {
-      var s = null;
-      Object.keys(imp).forEach(function (pid) {
-        var p = S.posts.get(pid), x = p && igMet(p);
-        if (x && x.m && x.m[f.k] != null) s = (s || 0) + x.m[f.k];
-      });
-      return { kind: "split", ads: s, total: cm[f.k] != null ? cm[f.k] : null, post: true };
-    }
-    var si = 0, ni = 0, so = 0, no = 0;
-    allPosts().forEach(function (p) {
-      var x = igMet(p), day = postDay(p, x);
-      if (!hasIg(p) || !x || !x.m || x.m[f.k] == null || day.slice(0, 7) !== mk) return;
-      if (impulsosDe(p.id).length) {
-        si += x.m[f.k];
-        ni++;
-      } else {
-        so += x.m[f.k];
-        no++;
-      }
-    });
-    return { kind: "avg", ads: ni ? si / ni : null, org: no ? so / no : null };
-  }
-  function adsSplit(r, focos) {
-    var hoyMes = todayStr().slice(0, 7);
-    var months = monthsIn(r.desde, r.hasta).filter(function (mk) {
-        return mk <= hoyMes; // los meses que aún no llegan no tienen nada que comparar
-      }),
-      q = monthsIn(r.desde, r.hasta).length > 1, rows = "";
-    if (!months.length) return "";
-    focos.forEach(function (f) {
-      var datos = months.map(function (mk) {
-        return { mk: mk, d: splitMes(f, mk) };
-      });
-      var hay = datos.some(function (x) {
-        return x.d.ads != null || x.d.total != null || x.d.org != null;
-      });
-      if (!hay) return;
-      var body = "";
-      if (datos[0].d.kind === "avg") {
-        var max = 0;
-        datos.forEach(function (x) {
-          max = Math.max(max, x.d.ads || 0, x.d.org || 0);
-        });
-        datos.forEach(function (x) {
-          var mlab = q ? '<span class="sp-m">' + cap(MON3[Number(x.mk.slice(5, 7)) - 1]) + "</span>" : "";
-          body += '<div class="sp-avg">' + mlab + '<div class="sp-pair">' +
-            '<div class="sp-l"><span>Impulsados</span><div class="sp-bar"><i class="sp-ads" style="width:' + (max ? (x.d.ads || 0) / max * 100 : 0).toFixed(1) +
-            '%"></i></div><b>' + (x.d.ads != null ? fmtNum(x.d.ads) : "–") + "</b></div>" +
-            '<div class="sp-l"><span>Orgánicos</span><div class="sp-bar"><i class="sp-org" style="width:' + (max ? (x.d.org || 0) / max * 100 : 0).toFixed(1) +
-            '%"></i></div><b>' + (x.d.org != null ? fmtNum(x.d.org) : "–") + "</b></div></div></div>";
-        });
-        body += '<p class="sp-n">Media por post: posts impulsados contra los que no se impulsaron.</p>';
-      } else {
-        datos.forEach(function (x) {
-          var d = x.d, mlab = q ? '<span class="sp-m">' + cap(MON3[Number(x.mk.slice(5, 7)) - 1]) + "</span>" : "";
-          var ads = d.ads || 0, total = d.total, txt;
-          if (d.soloAds) {
-            body += '<div class="sp-row">' + mlab + '<div class="sp-bar"><i class="sp-ads" style="width:' + (ads ? 100 : 0) +
-              '%"></i></div><span class="sp-v"><b>' + (d.ads != null ? fmtNum(d.ads) : "–") + "</b> de ads</span></div>";
-            return;
-          }
-          if (total == null || total <= 0) {
-            body += '<div class="sp-row">' + mlab + '<div class="sp-bar"></div><span class="sp-v mut">' +
-              (d.ads != null ? fmtNum(d.ads) + " de ads · sin el total del mes" : "Sin datos") + "</span></div>";
-            return;
-          }
-          var pa = Math.min(100, ads / total * 100), org = Math.max(0, total - ads);
-          txt = "<b>" + fmtNum(org) + "</b> orgánico · <b>" + fmtNum(Math.min(ads, total)) + "</b> " + (d.post ? "en posts impulsados" : "de ads") +
-            " (" + Math.round(pa) + " %)";
-          body += '<div class="sp-row">' + mlab + '<div class="sp-bar" role="img" aria-label="' + Math.round(pa) + ' % de ads"><i class="sp-org" style="width:' +
-            (100 - pa).toFixed(1) + '%"></i><i class="sp-ads" style="width:' + pa.toFixed(1) + '%"></i></div><span class="sp-v">' + txt + "</span></div>";
-        });
-        if (datos[0].d.soloAds) body += '<p class="sp-n">Esta meta se mide solo con lo que registran los impulsos.</p>';
-        else if (datos[0].d.post) body += '<p class="sp-n">Lo de los posts impulsados incluye lo que esos posts consiguieron también sin pagar.</p>';
-      }
-      rows += '<div class="sp-goal"><h4>' + esc(f.name) + "</h4>" + body + "</div>";
-    });
-    if (!rows) return "";
-    return '<div class="card"><div class="card-h"><h3>Orgánico contra ads, por meta</h3><span class="sp-k"><i class="hk sp-k-org"></i>orgánico <i class="hk sp-k-ads"></i>ads</span></div>' +
-      '<div class="sp">' + rows + "</div></div>";
-  }
-
   /* Ventana para registrar o editar un impulso (un post de la parrilla impulsado en Meta). */
   function closeImp() {
     var o = document.getElementById("impOv");
@@ -4277,6 +4192,10 @@
         render();
         var bm = $("#budMonto");
         if (bm) bm.focus();
+        break;
+      case "budtoggle":
+        S.budOpen = !S.budOpen;
+        render();
         break;
       case "budcancel":
         S.budEdit = false;
