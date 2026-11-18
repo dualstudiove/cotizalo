@@ -495,11 +495,18 @@
     color: var(--ink-3);
     margin-right: 2px;
   }
-  /* Promoción: una línea de texto en el color de información, sin burbuja (en el celular la burbuja se
-     deformaba al bajar de línea) */
+  /* Chip de promoción en el color de información. Esquinas poco redondeadas (no píldora) para que, si el
+     nombre es largo y baja de línea, siga viéndose como un chip y no se deforme. */
   .promo-tag {
+    display: inline-block;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--info-bg);
     color: var(--info);
+    font-size: 12px;
     font-weight: 600;
+    line-height: 1.35;
   }
   /* Indicaciones: ícono y texto en la misma línea; si el texto es largo, baja junto al ícono */
   .item .meta.ind {

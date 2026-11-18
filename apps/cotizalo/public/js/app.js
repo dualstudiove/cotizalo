@@ -386,7 +386,7 @@ function precioConPromo(x, sufijo = "") {
     ref(x.precio_cent)
   }${sufijo}</div>`;
 }
-/** «Mes Rosa · −20 % hasta el 30/11»: texto en el color de información (el año solo si no es el actual). */
+/** Chip «Mes Rosa · −20 % hasta el 30/11» en el color de información (el año solo si no es el actual). */
 function etiquetaPromo(x) {
   if (!x.promo) return "";
   const f = fmtFecha(x.promo.hasta);
@@ -422,8 +422,7 @@ function metaTarjeta(x, promoPrimero = false) {
   return promoPrimero ? promo + ind : ind + promo;
 }
 
-// Tarjeta sencilla: nombre, precio y botón; debajo, solo promoción e indicaciones. Sin categoría ni
-// descripción (la descripción queda para el PDF).
+// Tarjeta sencilla: nombre, precio y botón; debajo, descripción, indicaciones y promoción. Sin categoría.
 function cardExamen(e) {
   const sel = S.ex.includes(e.id);
   const cub = !sel && cubiertoPor(e.id);
@@ -431,7 +430,7 @@ function cardExamen(e) {
   const tambien = aliasEncontrado(e);
   const cabeza = `<h3>${esc(e.nombre)}</h3>${
     tambien ? `<p class="alias">También llamado <b>${esc(tambien)}</b></p>` : ""
-  }`;
+  }${e.descripcion ? `<p class="desc">${esc(e.descripcion)}</p>` : ""}`;
   // Ya viene en un perfil elegido: no se cobra aparte, así que sin precio ni promoción; un ✓ en lugar del botón
   if (cub) {
     return `<article class="item dis">
