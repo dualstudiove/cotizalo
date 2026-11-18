@@ -3478,9 +3478,15 @@
     var reach = suma("alcance"), inter = suma("interacciones");
     var rate = reach.v ? inter.v / reach.v * 100 : null;
     var la = likesAvg(r.desde, r.hasta), laP = likesAvg(r.pDesde, r.pHasta);
+    // Seguidores nuevos: lo que da Meta día por día; si la cuenta no lo tiene, la diferencia de totales.
+    var nuevos = suma("nuevos");
+    if (nuevos.v != null) {
+      gained = nuevos.v;
+      gainedPrev = nuevos.p;
+    }
     var h = '<div class="kpis">' +
-      kpi("👥 Seguidores", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
-        fEnd != null ? fmtNum(fEnd) + " en total" : "ganados en el periodo") +
+      kpi("👥 Seguidores nuevos", gained == null ? "–" : sgnNum(gained), deltaHtml(gained, gainedPrev, r.etiqueta),
+        fEnd != null ? fmtNum(fEnd) + " en total" : "en el periodo") +
       cifra("alcance", "👀 Alcance", "Cuentas que vieron tu contenido" + (t.alcance ? " · " + fmtNum(t.alcance) + " con ads" : "")) +
       kpi("❤️ Media de likes", la ? fmtNum(la.v) : "–", deltaHtml(la && la.v, laP && laP.v, r.etiqueta),
         la ? "por post, de " + plural(la.n, "post publicado", "posts publicados") : (S.canWrite ? "Pega el link de los posts publicados." : "")) +

@@ -216,6 +216,15 @@ async function pasoCuenta(p, con, token) {
   } catch (e) {
     if (!(e instanceof ig.ErrorRed) || e.token) throw e; // sin permiso de métricas: el resto sigue
   }
+  // Seguidores nuevos de cada uno de los últimos 30 días (así se llena el historial apenas se conecta).
+  try {
+    const nuevos = await ig.seguidoresNuevos(p, token, con.cuenta_id, inicioDia(sumarDias(dia, -29)), inicioDia(dia));
+    for (const x of nuevos) {
+      if (x.dia < dia) await guardarDiaCuenta(con.cliente_id, "ig", x.dia, { datos: { nuevos: x.n } });
+    }
+  } catch (e) {
+    if (!(e instanceof ig.ErrorRed) || e.token) throw e; // menos de 100 seguidores o sin permiso: el resto sigue
+  }
   if (!con.audiencia_en || Date.now() - con.audiencia_en > 7 * DIA) {
     try {
       const a = await ig.audiencia(p, token, con.cuenta_id);

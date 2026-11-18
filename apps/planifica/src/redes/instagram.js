@@ -216,6 +216,31 @@ export async function audiencia(p, token, cuentaId) {
   return suma.map((fila, d) => fila.map((s, h) => (n[d][h] ? Math.round(s / n[d][h]) : 0)));
 }
 
+/**
+ * Seguidores nuevos por día (follower_count): [{ dia: "AAAA-MM-DD", n }]. Meta lo da para los últimos 30 días y
+ * solo a cuentas con 100 seguidores o más. end_time es el final del día (del Pacífico) al que corresponde el valor.
+ */
+export async function seguidoresNuevos(p, token, cuentaId, desde, hasta) {
+  const j = await pedir(p, `/${cuentaId}/insights`, {
+    metric: "follower_count",
+    period: "day",
+    since: desde,
+    until: hasta,
+    access_token: token,
+  });
+  const out = [];
+  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+  for (const d of j.data || []) {
+    if (d.name !== "follower_count") continue;
+    for (const v of d.values || []) {
+      const fin = Date.parse(v?.end_time);
+      if (!Number.isFinite(fin) || !Number.isFinite(v.value)) continue;
+      out.push({ dia: fecha.format(new Date(fin - 1)), n: v.value });
+    }
+  }
+  return out;
+}
+
 /** Instante (ms) del inicio del día, en la hora del Pacífico, que contiene a `ms`. */
 function inicioDelDiaPacifico(ms) {
   const partes = new Intl.DateTimeFormat("en-US", {
