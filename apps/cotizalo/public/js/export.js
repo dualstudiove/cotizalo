@@ -1,7 +1,7 @@
 // Exportación del presupuesto: vista previa, texto, PDF (escrito a mano, sin librerías) e imagen PNG.
 // El PDF sale del motor de maquetación (layoutDoc); la imagen es vertical y más sencilla, para estados y chats.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
-import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
+import { CLARO } from "../_ds/diseno/js/tokens.js";
 import { ICONOS } from "../_ds/diseno/js/iconos.js";
 
 const COLOR_POR_DEFECTO = "#109d9b"; // Cian, el de src/paleta.js
@@ -19,7 +19,6 @@ export function buildDoc({ res, negocio, paciente = {}, enlace = null }) {
     logo: negocio.logo || null,
     color: negocio.color || COLOR_POR_DEFECTO,
     colorAcento: negocio.tema?.acento || negocio.color || COLOR_POR_DEFECTO,
-    colorClaro: negocio.tema?.claro || null, // fondo de la imagen vertical
     colorTinta: negocio.tema?.tinta || null, // texto sobre el color del negocio
     enlace, // página del negocio, sin «https://» (va en la imagen)
     codigo: res.codigo,
@@ -844,7 +843,7 @@ function dibujarStory(d, g, H, dy = 0) {
   const W = STORY_W;
   const color = d.color || COLOR_POR_DEFECTO;
   const C = {
-    fondo: d.colorClaro || tinteDe(color),
+    fondo: CLARO.bg, // el gris claro de la página
     ink: CLARO.ink,
     muted: CLARO["ink-2"],
     linea: CLARO["line-2"],
