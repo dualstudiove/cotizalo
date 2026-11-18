@@ -56,7 +56,7 @@ export function registrarPublicas(r) {
       [negocio.id],
     );
     const examenes = await db.all(
-      `SELECT e.id, e.nombre, e.categoria_id, e.precio_cent, e.descripcion, e.indicaciones
+      `SELECT e.id, e.nombre, e.categoria_id, e.precio_cent, e.descripcion, e.indicaciones, e.alias
          FROM examenes e JOIN categorias c ON c.id = e.categoria_id
         WHERE e.negocio_id = ? AND e.activo = 1 AND c.activo = 1 AND e.solo_en_perfil = 0 ORDER BY e.nombre`,
       [negocio.id],
@@ -66,7 +66,7 @@ export function registrarPublicas(r) {
       [negocio.id],
     );
     const miembros = await db.all(
-      `SELECT pe.perfil_id, e.id, e.nombre, e.categoria_id
+      `SELECT pe.perfil_id, e.id, e.nombre, e.categoria_id, e.alias
          FROM perfil_examenes pe
          JOIN perfiles p ON p.id = pe.perfil_id
          JOIN examenes e ON e.id = pe.examen_id
@@ -76,7 +76,12 @@ export function registrarPublicas(r) {
     const porPerfil = new Map();
     for (const m of miembros) {
       if (!porPerfil.has(m.perfil_id)) porPerfil.set(m.perfil_id, []);
-      porPerfil.get(m.perfil_id).push({ id: m.id, nombre: m.nombre, categoria_id: m.categoria_id });
+      porPerfil.get(m.perfil_id).push({
+        id: m.id,
+        nombre: m.nombre,
+        categoria_id: m.categoria_id,
+        alias: m.alias || null, // el buscador encuentra el perfil también por los otros nombres
+      });
     }
     // Promociones de hoy: precio_cent ya trae el descuento; precio_lista_cent es el de antes.
     const promos = await promocionesDelDia(negocio.id, hoy());

@@ -317,6 +317,16 @@
     font-size: 12px;
     color: var(--ink-3);
   }
+  /* «También llamado glucemia»: cuando se encontró el examen por otro de sus nombres */
+  .item .alias {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .item .alias b {
+    color: var(--ink-2);
+    font-weight: 600;
+  }
   .item .desc {
     margin: 5px 0 0;
     font-size: 13px;

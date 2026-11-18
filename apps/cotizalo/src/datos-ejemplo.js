@@ -1,6 +1,15 @@
 // Datos de ejemplo (inventados) que usan el seed (src/seed.js) y el «negocio de ejemplo» del sitio de pruebas.
 // Sin dependencias de Node: también se cargan dentro del Worker.
 
+// Otros nombres con los que la gente busca algunos exámenes (el buscador del paciente los usa).
+export const ALIAS = {
+  "Hematología completa": "hemograma, hematología",
+  "Glicemia": "glucemia, glucosa",
+  "Hemoglobina glicosilada (HbA1c)": "hemoglobina glucosilada, A1c",
+  "TGO (AST)": "transaminasa oxalacética",
+  "TGP (ALT)": "transaminasa pirúvica",
+};
+
 // Catálogo ficticio (precios inventados, solo para probar la aplicación).
 export const CATALOGO = {
   "Hematología": [

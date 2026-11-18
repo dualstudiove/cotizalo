@@ -306,9 +306,10 @@ async function pPanel(page) {
   });
 }
 
-/** Vista previa de indicaciones y descripción en las filas de exámenes y perfiles (dos líneas como máximo). */
+/** Vista previa de otros nombres, indicaciones y descripción en las filas de exámenes y perfiles. */
 const vistaPrevia = (x) =>
   [
+    x.alias && `<div class="vista-previa">También: ${esc(x.alias)}</div>`,
     x.indicaciones && `<div class="vista-previa">${icon("info")} ${esc(x.indicaciones)}</div>`,
     x.descripcion && `<div class="vista-previa">${esc(x.descripcion)}</div>`,
   ].filter(Boolean).join("");
@@ -325,7 +326,7 @@ async function pExamenes(page) {
   const c = await catalogo(true);
   const lista = () =>
     c.examenes.filter((e) =>
-      (!F.cat || e.categoria_id === F.cat) && (!F.q || norm(e.nombre).includes(norm(F.q)))
+      (!F.cat || e.categoria_id === F.cat) && (!F.q || norm(`${e.nombre} ${e.alias || ""}`).includes(norm(F.q)))
     );
   page.innerHTML = `
     <div class="page-head"><h1>Exámenes <span class="muted" style="font-size:1rem;font-weight:500">(${c.examenes.length})</span></h1>
@@ -425,6 +426,9 @@ function formExamen(c, ex) {
       <div class="field"><label for="n">Nombre</label><input id="n" type="text" maxlength="120" value="${
       esc(ex?.nombre)
     }" required></div>
+      <div class="field"><label for="al">Otros nombres <span class="muted">(opcional)</span></label><input id="al" type="text" maxlength="600" placeholder="Ej.: glucemia, glucosa en ayunas" value="${
+      esc(ex?.alias)
+    }"><p class="muted small" style="margin:4px 0 0">Separados por comas. Sirven para que el paciente lo encuentre aunque lo busque con otro nombre o mal escrito; en el presupuesto sale el nombre de arriba.</p></div>
       <div class="row"><div class="field"><label for="c">Categoría</label><select id="c">${
       c.categorias.map((k) =>
         `<option value="${k.id}" ${(ex?.categoria_id || F.cat) === k.id ? "selected" : ""}>${
@@ -463,6 +467,7 @@ function formExamen(c, ex) {
             solo_en_perfil: solo,
             indicaciones: $("#i").value,
             descripcion: $("#ds").value,
+            alias: $("#al").value,
             activo: $("#a").checked,
           };
           await api(ex ? `/api/admin/examenes/${ex.id}` : "/api/admin/examenes", {

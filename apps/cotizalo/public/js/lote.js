@@ -212,6 +212,7 @@ function filasExamenes(datos) {
     precio: "precio",
     indicaciones: "indicacion",
     descripcion: "descripcion",
+    alias: "otros nombres",
     solo: "solo",
     activo: "activo",
   });
@@ -236,6 +237,7 @@ function filasExamenes(datos) {
     };
     if (ix.indicaciones !== undefined) fila.indicaciones = texto(f[ix.indicaciones]);
     if (ix.descripcion !== undefined) fila.descripcion = texto(f[ix.descripcion]);
+    if (ix.alias !== undefined) fila.alias = texto(f[ix.alias]);
     return fila;
   });
 }

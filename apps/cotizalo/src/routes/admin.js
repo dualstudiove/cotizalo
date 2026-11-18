@@ -177,7 +177,7 @@ export function registrarAdmin(r) {
       [nid],
     );
     const examenes = await db.all(
-      `SELECT e.id, e.nombre, e.categoria_id, c.nombre AS categoria, e.precio_cent, e.descripcion, e.indicaciones, e.activo, e.solo_en_perfil, e.actualizado_en
+      `SELECT e.id, e.nombre, e.categoria_id, c.nombre AS categoria, e.precio_cent, e.descripcion, e.indicaciones, e.alias, e.activo, e.solo_en_perfil, e.actualizado_en
          FROM examenes e JOIN categorias c ON c.id = e.categoria_id WHERE e.negocio_id = ? ORDER BY e.nombre`,
       [nid],
     );
@@ -387,6 +387,7 @@ export function registrarAdmin(r) {
         { titulo: "Descripción", valor: "descripcion" },
         { titulo: "Solo en perfil", valor: (f) => sino(f.solo_en_perfil) },
         { titulo: "Activo", valor: (f) => sino(f.activo) },
+        { titulo: "Otros nombres (separados por ,)", valor: "alias" },
       ]);
     } else if (params.tipo === "perfiles") {
       const perfiles = await db.all("SELECT * FROM perfiles WHERE negocio_id = ? ORDER BY nombre", [

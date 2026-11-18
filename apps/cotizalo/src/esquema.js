@@ -27,6 +27,8 @@ export const COLUMNAS = [
   ["examenes", "solo_en_perfil", "INTEGER NOT NULL DEFAULT 0"],
   // Aviso propio para el paciente en las categorías con exámenes repetibles (si no, uno general)
   ["categorias", "aviso_repetible", "TEXT"],
+  // Otros nombres de un examen («glucemia» para «Glicemia»), separados por comas: el buscador del paciente los usa
+  ["examenes", "alias", "TEXT"],
   // Promoción aplicada a una línea del presupuesto: precio de lista (sin descuento) y porcentaje
   ["presupuesto_items", "precio_lista_cent", "INTEGER"],
   ["presupuesto_items", "descuento_pct", "INTEGER NOT NULL DEFAULT 0"],

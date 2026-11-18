@@ -268,3 +268,40 @@ test("reordenar las opciones de ¿Cómo se enteró?", async () => {
     401,
   );
 });
+
+test("otros nombres (alias) de un examen: se limpian, salen en el catálogo público, en perfiles y en el CSV", async () => {
+  const cat = (await admin("/catalogo")).json;
+  const ex = cat.examenes.find((e) => e.nombre === "Glicemia");
+  assert.ok(ex, "el demo tiene Glicemia");
+  // Repetidos, vacíos y espacios de más se descartan; se aceptan «,», «;» y saltos de línea
+  let r = await admin(`/examenes/${ex.id}`, {
+    method: "PUT",
+    body: { alias: " glucemia ,Glucemia;; glucosa  en ayunas\nglucosa en ayunas, " },
+  });
+  assert.equal(r.status, 200, r.texto);
+  const guardado = (await admin("/catalogo")).json.examenes.find((e) => e.id === ex.id);
+  assert.equal(guardado.alias, "glucemia, glucosa en ayunas");
+  assert.equal(guardado.precio_cent, ex.precio_cent, "editar solo el alias no toca el precio");
+
+  const pub = (await publico("/catalogo")).json;
+  assert.equal(pub.examenes.find((e) => e.id === ex.id).alias, "glucemia, glucosa en ayunas");
+  const enPerfil = pub.perfiles.flatMap((p) => p.examenes).find((m) => m.id === ex.id);
+  if (enPerfil) assert.equal(enPerfil.alias, "glucemia, glucosa en ayunas");
+
+  const csv = await admin("/csv/examenes");
+  assert.match(csv.texto, /Otros nombres/);
+  assert.match(csv.texto, /glucemia, glucosa en ayunas/);
+
+  // La edición rápida (sin alias) no lo borra; enviarlo vacío sí
+  r = await admin("/examenes/lote", {
+    method: "POST",
+    body: { filas: [{ id: ex.id, nombre: "Glicemia", precio_cent: ex.precio_cent }] },
+  });
+  assert.equal(r.status, 200, r.texto);
+  assert.equal(
+    (await admin("/catalogo")).json.examenes.find((e) => e.id === ex.id).alias,
+    "glucemia, glucosa en ayunas",
+  );
+  await admin(`/examenes/${ex.id}`, { method: "PUT", body: { alias: "  " } });
+  assert.equal((await admin("/catalogo")).json.examenes.find((e) => e.id === ex.id).alias, null);
+});

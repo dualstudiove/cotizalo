@@ -6,7 +6,7 @@
 // de progreso. Solo está disponible si la variable DATOS_DE_EJEMPLO = "true" (sitio de pruebas).
 import { db } from "@dualstudio/comun/servidor";
 import { crearNegocio, crearPresupuesto } from "./negocio.js";
-import { CATALOGO, PATOLOGIA, PERFILES } from "./datos-ejemplo.js";
+import { ALIAS, CATALOGO, PATOLOGIA, PERFILES } from "./datos-ejemplo.js";
 import { HttpError, nowIso, parteFecha, uuid } from "./util.js";
 import { env } from "./env.js";
 
@@ -97,9 +97,20 @@ export async function pasoEjemplo({ paso = "negocio", negocio_id: nid, i = 0 } =
     await db.tx(async (t) => {
       for (const [cat, nombre, precio, desc, ind] of LISTA.slice(i, i + EXAMENES_POR_PASO)) {
         await t.run(
-          `INSERT INTO examenes (id, negocio_id, categoria_id, nombre, precio_cent, descripcion, indicaciones, activo, creado_en, actualizado_en)
-           VALUES (?,?,?,?,?,?,?,1,?,?)`,
-          [uuid(), nid, cats.get(cat), nombre, centavos(precio), desc, ind, ahora, ahora],
+          `INSERT INTO examenes (id, negocio_id, categoria_id, nombre, precio_cent, descripcion, indicaciones, alias, activo, creado_en, actualizado_en)
+           VALUES (?,?,?,?,?,?,?,?,1,?,?)`,
+          [
+            uuid(),
+            nid,
+            cats.get(cat),
+            nombre,
+            centavos(precio),
+            desc,
+            ind,
+            ALIAS[nombre] || null,
+            ahora,
+            ahora,
+          ],
         );
       }
     });

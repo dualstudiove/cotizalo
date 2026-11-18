@@ -321,6 +321,17 @@ function coincide(palabras, texto) {
   return nota;
 }
 
+/** Otros nombres de un examen (los pone el administrador): «glucemia, glucosa» → ["glucemia", "glucosa"]. */
+const aliasDe = (e) => String(e?.alias || "").split(",").map((x) => x.trim()).filter(Boolean);
+
+/** El otro nombre por el que se encontró un examen, si coincide mejor que su nombre («glucemia» → Glicemia). */
+function aliasEncontrado(e) {
+  const palabras = palabrasDe(S.q).filter((p) => !ES_PERFIL.test(p));
+  if (!palabras.length) return null;
+  const porNombre = coincide(palabras, `${e.nombre} ${e.descripcion || ""}`);
+  return aliasDe(e).find((a) => coincide(palabras, a) > porNombre) || null;
+}
+
 /** Filtra y ordena: primero lo que coincide tal cual, después lo que tiene un error de tipeo. */
 function buscar(lista, palabras, textos) {
   if (!palabras.length) return lista;
@@ -347,7 +358,7 @@ function filtrar() {
   const ex = buscar(
     S.cat.examenes.filter((e) => !S.catId || e.categoria_id === S.catId),
     palabras,
-    (e) => [`${e.nombre} ${e.descripcion || ""}`],
+    (e) => [`${e.nombre} ${e.descripcion || ""}`, ...aliasDe(e)],
   );
   const pf = buscar(
     S.cat.perfiles.filter((p) =>
@@ -355,7 +366,7 @@ function filtrar() {
       p.examenes.some((m) => (m.categoria_id ?? exMap.get(m.id)?.categoria_id) === S.catId)
     ),
     palabras,
-    (p) => [p.nombre, ...p.examenes.map((m) => m.nombre)],
+    (p) => [p.nombre, ...p.examenes.flatMap((m) => [m.nombre, ...aliasDe(m)])],
   );
   return { ex, pf };
 }
@@ -391,8 +402,11 @@ function cardExamen(e) {
     }" data-act="ex" data-id="${esc(e.id)}" aria-pressed="${sel}">${
       sel ? `${icon("check")} Agregado` : `${icon("plus")} Agregar`
     }</button>`;}
+  const tambien = aliasEncontrado(e);
   return `<article class="item ${sel ? "sel" : ""} ${cub ? "dis" : ""}">
-    <div><h3>${esc(e.nombre)}</h3>
+    <div><h3>${esc(e.nombre)}</h3>${
+    tambien ? `<p class="alias">También llamado <b>${esc(tambien)}</b></p>` : ""
+  }
       <div class="meta">${
     cat
       ? `<span class="badge cat-${(S.cat.categorias.indexOf(cat) % 5) + 1}">${

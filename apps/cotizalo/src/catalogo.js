@@ -7,6 +7,24 @@ const bool = (v, def) => (v === undefined ? def : v === true || v === 1 || v ===
 const clave = (s) => String(s ?? "").trim().toLowerCase();
 
 /**
+ * Otros nombres de un examen: llegan como texto («glucemia, glucosa») o lista y se guardan separados por «, »,
+ * sin repetidos ni vacíos. Hasta 15 nombres de 60 caracteres. Vacío = null.
+ */
+export function aliasDe(v) {
+  const partes = Array.isArray(v) ? v : String(v ?? "").split(/[,;|\n]/);
+  const vistos = new Set();
+  const out = [];
+  for (const p of partes) {
+    const a = String(p ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+    if (!a || vistos.has(a.toLowerCase())) continue;
+    vistos.add(a.toLowerCase());
+    out.push(a);
+    if (out.length === 15) break;
+  }
+  return out.length ? out.join(", ") : null;
+}
+
+/**
  * Datos de un examen a partir de lo enviado (y de lo que ya tenía, al editar).
  * Un examen «solo en perfil» no se ofrece suelto al paciente y no tiene precio propio (se guarda 0).
  */
@@ -33,6 +51,7 @@ export function datosExamen(body, actual = null) {
     indicaciones: body.indicaciones !== undefined
       ? optStr(body.indicaciones, 300)
       : actual?.indicaciones ?? null,
+    alias: body.alias !== undefined ? aliasDe(body.alias) : actual?.alias ?? null,
     activo: bool(body.activo, actual ? !!actual.activo : true) ? 1 : 0,
     solo_en_perfil: soloEnPerfil ? 1 : 0,
   };
@@ -64,8 +83,8 @@ export async function escribirExamen(t, negocioId, id, d, nuevo) {
   const ahora = nowIso();
   if (nuevo) {
     await t.run(
-      `INSERT INTO examenes (id, negocio_id, categoria_id, nombre, precio_cent, descripcion, indicaciones, activo, solo_en_perfil, creado_en, actualizado_en)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO examenes (id, negocio_id, categoria_id, nombre, precio_cent, descripcion, indicaciones, alias, activo, solo_en_perfil, creado_en, actualizado_en)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         id,
         negocioId,
@@ -74,6 +93,7 @@ export async function escribirExamen(t, negocioId, id, d, nuevo) {
         d.precio_cent,
         d.descripcion,
         d.indicaciones,
+        d.alias,
         d.activo,
         d.solo_en_perfil,
         ahora,
@@ -82,7 +102,7 @@ export async function escribirExamen(t, negocioId, id, d, nuevo) {
     );
   } else {
     await t.run(
-      `UPDATE examenes SET nombre = ?, categoria_id = ?, precio_cent = ?, descripcion = ?, indicaciones = ?, activo = ?, solo_en_perfil = ?, actualizado_en = ?
+      `UPDATE examenes SET nombre = ?, categoria_id = ?, precio_cent = ?, descripcion = ?, indicaciones = ?, alias = ?, activo = ?, solo_en_perfil = ?, actualizado_en = ?
         WHERE id = ? AND negocio_id = ?`,
       [
         d.nombre,
@@ -90,6 +110,7 @@ export async function escribirExamen(t, negocioId, id, d, nuevo) {
         d.precio_cent,
         d.descripcion,
         d.indicaciones,
+        d.alias,
         d.activo,
         d.solo_en_perfil,
         ahora,
@@ -134,7 +155,7 @@ export async function escribirPerfil(t, negocioId, id, d, nuevo, examenIds = nul
 
 /**
  * Varios exámenes de una vez (edición rápida e importación de CSV).
- * filas: [{ id?, nombre, categoria_id? | categoria?, precio_cent, indicaciones, descripcion, activo, solo_en_perfil }]
+ * filas: [{ id?, nombre, categoria_id? | categoria?, precio_cent, indicaciones, descripcion, alias, activo, solo_en_perfil }]
  *  · Con id se actualiza ese examen; sin id, se busca por nombre (sin distinguir mayúsculas) y si no existe, se crea.
  *  · categoria (texto): si no existe una categoría con ese nombre, se crea.
  * simular: true → solo cuenta lo que haría. Si una fila no es válida, nada se guarda y se dice cuál.
@@ -195,6 +216,7 @@ export async function loteExamenes(negocioId, filas, { simular = false } = {}) {
           "precio_cent",
           "descripcion",
           "indicaciones",
+          "alias",
           "activo",
           "solo_en_perfil",
         ]
