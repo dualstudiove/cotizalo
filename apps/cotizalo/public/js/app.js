@@ -287,38 +287,53 @@ function frasePromo(p) {
   return resto ? { pct: `−${p.porcentaje}%`, texto: `en ${resto}.` } : null;
 }
 
-/** Promociones de hoy con algo visible para el paciente, sin las que cerró en este teléfono. */
-const promoCerrada = (id) => !!leer(localStorage, `promo:${id}`);
+/** Promociones de hoy con algo visible para el paciente. */
 const promosVisibles = () =>
   (S.cat.promociones || []).map((p) => ({ ...p, frase: frasePromo(p) })).filter((p) => p.frase);
 const hayPromos = () => S.cat.examenes.some((e) => e.promo) || S.cat.perfiles.some((p) => p.promo);
 
+// Grande o compacto: la primera vez que la persona ve unas promociones, el anuncio sale completo; desde la
+// siguiente visita (o en cuanto lo toca) sale en una sola línea. Lo ya visto se recuerda en este teléfono.
+let promoGrande = null;
+function decidirTamanoPromo(promos) {
+  if (promoGrande !== null) return;
+  const vistas = new Set(leer(localStorage, "promosVistas") || []);
+  promoGrande = promos.some((p) => !vistas.has(p.id));
+  guardar(localStorage, "promosVistas", [...new Set([...vistas, ...promos.map((p) => p.id)])].slice(-50));
+}
+
 /**
- * Anuncio del inicio: una caja con 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha).
- * Un solo «Ver promociones» y una sola × que las cierra todas.
+ * Anuncio del inicio: todo el anuncio es un botón que muestra las promociones (con «›» a la derecha).
+ *  · grande: 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha)
+ *  · compacto: una línea («Mes Rosa · −20% en…» o «2 promociones: Mes Rosa y …»), cortada con «…»
  */
 function anuncioPromos(promos) {
-  return `<div class="promo-anuncio" role="region" aria-label="Promociones">
-    <span class="emoji" aria-hidden="true">🎉</span>
-    <div class="txt">${
-    promos.map((p) =>
-      `<div class="una"><b>${esc(p.nombre)}</b><span><strong>${esc(p.frase.pct)}</strong> ${
-        esc(p.frase.texto)
-      }</span><small>Hasta el ${
-        fechaCorta(p.hasta)
-      }</small></div>`
-    ).join("")
+  const frase = (p) => `<strong>${esc(p.frase.pct)}</strong> ${esc(p.frase.texto)}`;
+  if (!promoGrande) {
+    const linea = promos.length === 1
+      ? `<b>${esc(promos[0].nombre)}</b> · ${frase(promos[0])}`
+      : `<b>${promos.length} promociones:</b> ${esc(enLista(promos.map((p) => p.nombre)))}`;
+    return `<button type="button" class="promo-anuncio compacta" data-act="verpromo">
+      <span class="emoji" aria-hidden="true">🎉</span><span class="linea">${linea}</span>
+      <span class="flecha" aria-hidden="true">›</span></button>`;
   }
-      <button type="button" class="btn btn-sm ver" data-act="verpromo">Ver promociones</button></div>
-    <button type="button" class="cerrar" data-act="cerrarpromo" data-id="${
-    esc(promos.map((p) => p.id).join(","))
-  }" aria-label="Cerrar ${promos.length === 1 ? "el anuncio" : "los anuncios"}">×</button>
-  </div>`;
+  return `<button type="button" class="promo-anuncio" data-act="verpromo">
+    <span class="emoji" aria-hidden="true">🎉</span>
+    <span class="txt">${
+    promos.map((p) =>
+      `<span class="una"><b>${esc(p.nombre)}</b><span>${frase(p)}</span><small>Hasta el ${
+        fechaCorta(p.hasta)
+      }</small></span>`
+    ).join("")
+  }</span>
+    <span class="flecha" aria-hidden="true">›</span>
+  </button>`;
 }
 
 function renderAviso() {
   const fecha = S.cfg.precios_actualizados_en ? diaLocal(S.cfg.precios_actualizados_en) : null;
-  const promos = promosVisibles().filter((p) => !promoCerrada(p.id));
+  const promos = promosVisibles();
+  if (promos.length) decidirTamanoPromo(promos);
   $("#aviso").innerHTML = (promos.length ? anuncioPromos(promos) : "") + (
     fecha
       ? `<div class="notice">${icon("info")}<div>Última actualización de precios: <b>${
@@ -1293,11 +1308,12 @@ document.addEventListener("click", (e) => {
       inp.focus();
       break;
     }
-    case "cerrarpromo":
-      for (const pid of id.split(",")) guardar(localStorage, `promo:${pid}`, 1);
-      renderAviso();
-      break;
     case "verpromo": {
+      // Ya lo vio: el anuncio pasa a ocupar una sola línea
+      if (promoGrande) {
+        promoGrande = false;
+        renderAviso();
+      }
       // Filtro «Promociones»; si no hay exámenes en promoción, a la pestaña de perfiles
       S.catId = "promo";
       const { ex, pf } = filtrar();
