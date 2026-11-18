@@ -295,7 +295,7 @@ const hayPromos = () => S.cat.examenes.some((e) => e.promo) || S.cat.perfiles.so
 
 /**
  * Anuncio del inicio: una caja con 🎉 y, una debajo de otra, las promociones activas (nombre, frase y fecha).
- * Un solo «Ver en promoción» y una sola × que las cierra todas.
+ * Un solo «Ver promociones» y una sola × que las cierra todas.
  */
 function anuncioPromos(promos) {
   return `<div class="promo-anuncio" role="region" aria-label="Promociones">
@@ -309,7 +309,7 @@ function anuncioPromos(promos) {
       }</small></div>`
     ).join("")
   }
-      <button type="button" class="btn btn-sm ver" data-act="verpromo">Ver en promoción</button></div>
+      <button type="button" class="btn btn-sm ver" data-act="verpromo">Ver promociones</button></div>
     <button type="button" class="cerrar" data-act="cerrarpromo" data-id="${
     esc(promos.map((p) => p.id).join(","))
   }" aria-label="Cerrar ${promos.length === 1 ? "el anuncio" : "los anuncios"}">×</button>
