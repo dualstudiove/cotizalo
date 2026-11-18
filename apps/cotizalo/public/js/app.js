@@ -538,7 +538,11 @@ function renderResumen() {
 }
 
 // ───────────── Presupuesto generado ─────────────
-const docActual = () => buildDoc({ res: S.res, negocio: S.cfg.negocio, paciente: S.pac });
+// La página de este negocio (p. ej. dualstudio.app/cotizalo/demo): sale de la dirección actual, así sigue
+// valiendo si la app se muda a su propio dominio.
+const enlaceNegocio = () => `${location.host}${location.pathname}`.replace(/\/+$/, "");
+const docActual = () =>
+  buildDoc({ res: S.res, negocio: S.cfg.negocio, paciente: S.pac, enlace: enlaceNegocio() });
 
 function renderOk() {
   const el = $("#v-ok");

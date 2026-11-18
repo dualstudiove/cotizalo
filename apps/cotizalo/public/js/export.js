@@ -2,11 +2,12 @@
 // El PDF sale del motor de maquetación (layoutDoc); la imagen es vertical y más sencilla, para estados y chats.
 import { bs, diaLocal, esc, fmtFecha, fmtNum, fmtTasa, icon, ref } from "./common.js";
 import { CLARO, tinteDe } from "../_ds/diseno/js/tokens.js";
+import { ICONOS } from "../_ds/diseno/js/iconos.js";
 
 const COLOR_POR_DEFECTO = "#109d9b"; // Cian, el de src/paleta.js
 
 /** Arma el documento a exportar a partir de la respuesta del servidor + datos opcionales del paciente. */
-export function buildDoc({ res, negocio, paciente = {} }) {
+export function buildDoc({ res, negocio, paciente = {}, enlace = null }) {
   const limpio = (v) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   return {
     nombre: res.negocio.nombre,
@@ -20,6 +21,7 @@ export function buildDoc({ res, negocio, paciente = {} }) {
     colorAcento: negocio.tema?.acento || negocio.color || COLOR_POR_DEFECTO,
     colorClaro: negocio.tema?.claro || null, // fondo de la imagen vertical
     colorTinta: negocio.tema?.tinta || null, // texto sobre el color del negocio
+    enlace, // página del negocio, sin «https://» (va en la imagen)
     codigo: res.codigo,
     emision: res.dia,
     vigencia: res.vigencia_hasta,
@@ -88,33 +90,19 @@ const contacto = (d) =>
   );
 
 // ─────────────────────────── Texto ───────────────────────────
+// Lista sencilla para pegar en un chat: los exámenes con su precio, los totales y la fecha de los precios.
+// El resto (negocio, código, paciente, indicaciones) va en el PDF y en la imagen.
 export function toText(d) {
-  const L = [
-    "PRESUPUESTO DE EXÁMENES",
-    d.nombre,
-    ...contacto(d),
-    "",
-    `Código: ${d.codigo}`,
-    `Fecha: ${fmtFecha(d.emision)}  ·  Válido hasta: ${fmtFecha(d.vigencia)}`,
-  ];
-  const pac = datosPaciente(d);
-  if (pac.length) L.push("", ...pac.map(([k, v]) => `${k}: ${v}`));
-  L.push("", "EXÁMENES Y PERFILES");
-  for (const it of d.items) {
-    L.push(
-      `- ${it.nombre}: ${ref(it.precio_cent)}${
-        it.promo ? ` (precio regular: ${ref(it.promo.antes)})` : ""
-      }`,
-    );
-    if (it.promo) L.push(`   [${textoPromo(it.promo).toUpperCase()}]`);
-    for (const x of it.detalle) L.push(`   ${x}`);
-  }
-  if (hayPromos(d)) L.push("", `* ${NOTA_PROMO}`);
-  L.push("", `TOTAL: ${ref(d.totalRef)}`);
-  if (d.tasa) L.push(`TOTAL EN BOLÍVARES: ${bs(d.totalBs)}`);
-  L.push(tasaTexto(d));
+  const L = d.items.map((it) =>
+    `- ${it.nombre}: ${ref(it.precio_cent)}${
+      it.promo
+        ? ` (promoción${it.promo.hasta ? ` hasta el ${fechaCorta(it.promo.hasta)}` : ""})`
+        : ""
+    }`
+  );
+  L.push("", `Total: ${ref(d.totalRef)}`);
+  if (d.tasa) L.push(`Total en bolívares: ${bs(d.totalBs)}`, tasaTexto(d));
   if (d.precios) L.push(`Precios actualizados el ${fmtFecha(d.precios)}.`);
-  if (d.pie) L.push("", d.pie);
   return L.join("\n");
 }
 
@@ -1020,6 +1008,46 @@ function dibujarStory(d, g, H, dy = 0) {
       texto(l, M, y, font(400, 28), C.muted);
       y += 40;
     }
+  }
+  // Tarjeta final: ícono y enlace a la página del negocio, para que otros armen su propio presupuesto
+  if (d.enlace) {
+    y += 40;
+    const alto = 168;
+    const lado = 104;
+    caja(M, y, W - M * 2, alto, 36, C.tarjeta);
+    const ix = M + 32;
+    const iy = y + (alto - lado) / 2;
+    let xt;
+    if (logo) {
+      const lw = Math.min(lado * 2, (logo.w / logo.h) * lado);
+      g.drawImage(logo.img, ix, iy, lw, lado);
+      xt = ix + lw + 28;
+    } else {
+      // El matraz sobre el color del negocio, como en la cabecera de la página del paciente
+      caja(ix, iy, lado, lado, 26, C.color);
+      g.save();
+      g.translate(ix + lado * 0.2, iy + lado * 0.2);
+      g.scale((lado * 0.6) / 24, (lado * 0.6) / 24);
+      g.strokeStyle = C.tinta;
+      g.lineWidth = 2;
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      for (const [, p] of ICONOS.flask.matchAll(/d="([^"]+)"/g)) g.stroke(new Path2D(p));
+      g.restore();
+      xt = ix + lado + 28;
+    }
+    const maxT = W - M - 32 - xt;
+    texto("Haz tu presupuesto en", xt, y + 72, font(500, 28), C.muted);
+    // El enlace entero si cabe (achicando la letra hasta 24 px); si no, recortado con «…»
+    const fUrl = (px) => font(700, px, F_TITULO);
+    let px = 38;
+    while (px > 24 && medir(d.enlace, fUrl(px)) > maxT) px -= 2;
+    let url = d.enlace;
+    for (let n = d.enlace.length; n > 8 && medir(url, fUrl(px)) > maxT; n--) {
+      url = `${d.enlace.slice(0, n)}…`;
+    }
+    texto(url, xt, y + 72 + 50, fUrl(px), C.acento);
+    y += alto;
   }
   return y + 56;
 }
