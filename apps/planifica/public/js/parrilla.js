@@ -2929,43 +2929,50 @@
   function impDates(i) {
     return fmtShort(i.inicio) + (i.fin ? " – " + fmtShort(i.fin) : " · en curso");
   }
-  function impCard(i) {
+  /** Tarjeta de un impulso: primero lo que consiguió (clics a WhatsApp y su costo), después lo gastado. */
+  function impCard(i, best) {
     var p = S.posts.get(i.publicacion_id) || { id: i.publicacion_id, title: "", format: "reel" },
       x = igMet(p), r = i.resultados || {}, cpc = costPer(i.gastado, r.clics);
-    var chips = ["alcance", "clics", "mensajes", "visitas", "seguidores"].filter(function (k) {
+    var chips = ["mensajes", "alcance", "visitas", "seguidores"].filter(function (k) {
       return r[k] != null;
     }).map(function (k) {
       return '<span class="rchip"><b>' + fmtNum(r[k]) + "</b> " + RES_CHIP[k] + "</span>";
     }).join("");
-    return '<div class="imp">' + thumbHtml(p, x, "tthumb") + '<div class="imp-b"><a href="#post-' + esc(p.id) + '">' +
-      (p.title ? esc(p.title) : "<em>Sin título</em>") + '</a><div class="meta"><span class="mt">' + esc(impDates(i)) + "</span>" +
+    return '<div class="imp' + (best ? " best" : "") + '">' + thumbHtml(p, x, "tthumb") + '<div class="imp-b"><a href="#post-' + esc(p.id) + '">' +
+      (p.title ? esc(p.title) : "<em>Sin título</em>") + "</a>" +
+      (best ? '<span class="best-tag">Mejor costo por clic</span>' : "") +
+      '<div class="meta"><span class="mt">' + esc(impDates(i)) + "</span>" +
       (i.objetivo ? '<span class="mt">· Objetivo: ' + esc(OBJ_LABEL[i.objetivo] || i.objetivo) + "</span>" : "") +
-      "</div>" + (chips ? '<div class="rchips">' + chips + "</div>" : '<p class="mut">Aún sin resultados anotados.</p>') +
-      (i.notas ? '<p class="mut imp-n">' + esc(i.notas) + "</p>" : "") + '</div><div class="imp-v"><b>' + fmtUsd(i.gastado) + "</b>" +
-      (cpc != null ? "<span>" + esc(fmtUsd(cpc)) + " por clic</span>" : "") +
+      '<span class="mt">· ' + esc(fmtUsd(i.gastado)) + " invertidos</span></div>" +
+      (chips ? '<div class="rchips">' + chips + "</div>" : "") +
+      (i.notas ? '<p class="mut imp-n">' + esc(i.notas) + "</p>" : "") + '</div><div class="imp-v">' +
+      (r.clics != null
+        ? "<b>" + fmtNum(r.clics) + "</b><span>clics a WhatsApp</span>" +
+          (cpc != null ? '<span class="cpc">' + esc(fmtUsd(cpc)) + " c/u</span>" : "")
+        : '<span class="mut">Sin clics anotados</span>') +
       (S.canWrite ? '<button class="btn sm ghost" type="button" data-act="impedit" data-id="' + esc(i.id) + '">Editar</button>' : "") +
       "</div></div>";
   }
-  /** Barra del presupuesto: gastado y saldo, con aviso al 80 % y en rojo si se pasó. */
+  /** Presupuesto: lo invertido y el saldo, en una línea secundaria (con aviso al 80 % y en rojo si se pasó). */
   function budgetBlock(r) {
     var b = budgetIn(r.desde, r.hasta), t = adsTotals(impulsosEn(r.desde, r.hasta)),
       pct = b ? t.gastado / b * 100 : null, mes = monthKey(S.cy, S.cm);
     var cls = pct == null ? "" : pct > 100 ? " over" : pct >= 80 ? " warn" : "";
     if (S.budEdit && !resQ()) {
       var cur = ADS().presupuestos[mes] || {};
-      return '<div class="budget edit"><div class="r2"><div class="fld"><label for="budMonto">Presupuesto de ' +
+      return '<div class="card budget edit"><div class="r2"><div class="fld"><label for="budMonto">Presupuesto de ' +
         MONTHS[S.cm].toLowerCase() + ' (USD)</label><input id="budMonto" class="in" type="text" inputmode="decimal" placeholder="150" value="' +
         esc(cur.monto != null ? valStr(cur.monto) : "") + '" autocomplete="off"></div><div class="fld"><label for="budNotas">Nota (opcional)</label><input id="budNotas" class="in" type="text" placeholder="Ej. aprobaron 50 USD extra el 12 nov" value="' +
         esc(cur.notas || "") + '" autocomplete="off"></div></div><div class="acts"><button class="btn sm" type="button" data-act="budcancel">Cancelar</button><button class="btn sm primary" type="button" data-act="budsave">Guardar</button></div></div>';
     }
     var notas = resQ() ? "" : ((ADS().presupuestos[mes] || {}).notas || "");
-    return '<div class="budget' + cls + '"><div class="bud-h"><div><span class="kl">Invertido' + (resQ() ? " en el trimestre" : "") + "</span><div><b>" +
-      usdBig(t.gastado) + "</b><span> de " + (b != null ? fmtUsd(b) : "– (sin presupuesto)") + "</span></div></div>" +
+    return '<div class="card budget' + cls + '"><div class="bud-h"><div><span class="kl">Presupuesto' + (resQ() ? " del trimestre" : "") +
+      "</span><div><b>" + usdBig(t.gastado) + "</b><span> invertidos de " + (b != null ? fmtUsd(b) : "– (sin presupuesto)") + "</span></div></div>" +
       (b != null
         ? '<span class="bud-s">' + (t.gastado <= b ? "Quedan " + fmtUsd(b - t.gastado) : "Se pasó por " + fmtUsd(t.gastado - b)) + "</span>"
         : "") +
       (S.canWrite && !resQ()
-        ? '<button class="btn sm ghost" type="button" data-act="budedit">' + (b != null ? "Cambiar presupuesto" : "Definir presupuesto") + "</button>"
+        ? '<button class="btn sm ghost" type="button" data-act="budedit">' + (b != null ? "Cambiar" : "Definir presupuesto") + "</button>"
         : "") + "</div>" +
       '<div class="bud-bar" aria-hidden="true"><i style="width:' + Math.min(100, pct || 0).toFixed(1) + '%"></i></div>' +
       (pct != null && pct >= 80
@@ -2974,6 +2981,83 @@
       (notas ? '<p class="mut">' + esc(notas) + "</p>" : "") +
       (resQ() && S.canWrite ? '<p class="mut">El presupuesto se define por mes: cámbialo en la vista de cada mes.</p>' : "") +
       "</div>";
+  }
+  /** Costo por clic promedio de los meses anteriores con datos (hasta 6), para comparar. */
+  function cpcHistorico(r) {
+    var end = dateObj(r.desde), g = 0, c = 0;
+    for (var k = 1; k <= 6; k++) {
+      var d = new Date(end.getFullYear(), end.getMonth() - k, 1), mk = monthKey(d.getFullYear(), d.getMonth());
+      var t = adsTotals(impulsosEn(mk + "-01", mk + "-31"));
+      if (t.clics) {
+        g += t.gastado;
+        c += t.clics;
+      }
+    }
+    return c ? g / c : null;
+  }
+  /**
+   * ¿Funcionaron los ads? El resultado principal son los clics a WhatsApp; el éxito se juzga por cuánto costó cada
+   * uno comparado con el periodo anterior (o, si no hay, con el promedio de los meses anteriores).
+   */
+  function adsVerdict(r, list, t, tp) {
+    var per = resQ() ? "trimestre" : "mes", cpc = costPer(t.gastado, t.clics);
+    var ref = costPer(tp.gastado, tp.clics), refTxt = "el " + per + " anterior";
+    if (ref == null) {
+      ref = cpcHistorico(r);
+      refTxt = "el promedio de los meses anteriores";
+    }
+    var k, titulo, texto;
+    var conClics = list.filter(function (i) {
+      return (i.resultados || {}).clics;
+    });
+    var best = conClics.slice().sort(function (a, b) {
+      return costPer(a.gastado, a.resultados.clics) - costPer(b.gastado, b.resultados.clics);
+    });
+    function nombre(i) {
+      var p = S.posts.get(i.publicacion_id);
+      return "«" + ((p && p.title) || "Sin título") + "»";
+    }
+    if (t.clics == null) {
+      k = "pend";
+      titulo = "Aún no hay resultados anotados";
+      texto = S.canWrite
+        ? "Anota en cada impulso los clics a WhatsApp que da Meta para saber si funcionaron."
+        : "Los resultados de los impulsos de este " + per + " todavía no están cargados.";
+    } else if (ref == null) {
+      k = "run";
+      titulo = "Primer " + per + " con resultados";
+      texto = fmtNum(t.clics) + " personas tocaron el botón de WhatsApp, a " + fmtUsd(cpc) +
+        " cada una. Desde el próximo " + per + " se compara para saber si mejora.";
+    } else {
+      var d = (cpc - ref) / ref;
+      var pct = Math.abs(Math.round(d * 100));
+      k = d <= -0.1 ? "ok" : d >= 0.1 ? "bad" : "run";
+      titulo = k === "ok" ? "Los ads funcionaron mejor que " + refTxt
+        : k === "bad" ? "Los ads rindieron menos que " + refTxt
+        : "Resultados parecidos a " + refTxt;
+      texto = fmtNum(t.clics) + " personas tocaron el botón de WhatsApp, a " + fmtUsd(cpc) + " cada una" +
+        (k === "run" ? " (casi lo mismo que " + refTxt + ", " + fmtUsd(ref) + ")."
+          : ": " + pct + " % más " + (d < 0 ? "barato" : "caro") + " que " + refTxt + " (" + fmtUsd(ref) + ").");
+    }
+    if (best.length > 1) {
+      texto += " El mejor fue " + nombre(best[0]) + " (" + fmtUsd(costPer(best[0].gastado, best[0].resultados.clics)) + " por clic)";
+      var worst = best[best.length - 1], wc = costPer(worst.gastado, worst.resultados.clics);
+      texto += k === "bad" || wc > 2 * costPer(best[0].gastado, best[0].resultados.clics)
+        ? "; el que menos rindió, " + nombre(worst) + " (" + fmtUsd(wc) + ")."
+        : ".";
+    }
+    var st = { k: k, t: { ok: "Funcionó", bad: "Por mejorar", run: k === "run" && ref == null ? "Sin comparación aún" : "Estable", pend: "Sin datos" }[k] };
+    return {
+      best: best.length > 1 ? best[0].id : null,
+      html: '<div class="verdict v-' + k + '"><div class="v-h">' + mpill(st) + "<h3>" + esc(titulo) + "</h3></div><p>" + esc(texto) + "</p>" +
+        '<div class="v-nums"><div><b>' + (t.clics != null ? fmtNum(t.clics) : "–") + "</b><span>clics a WhatsApp</span>" +
+        deltaHtml(t.clics, tp.clics, r.etiqueta) + "</div>" +
+        "<div><b>" + usdBig(cpc) + "</b><span>por clic a WhatsApp</span>" + deltaHtml(cpc, costPer(tp.gastado, tp.clics), r.etiqueta, true) + "</div>" +
+        "<div><b>" + (t.mensajes != null ? fmtNum(t.mensajes) : "–") + "</b><span>mensajes" +
+        (t.mensajes ? " · " + esc(fmtUsd(t.gastado / t.mensajes)) + " c/u" : "") + "</span></div>" +
+        "<div><b>" + (t.alcance != null ? fmtNum(t.alcance) : "–") + "</b><span>personas alcanzadas" +
+        (t.seguidores ? " · " + sgnNum(t.seguidores) + " seguidores" : "") + "</span></div></div></div>",
+    };
   }
   function adsSection(r) {
     var list = impulsosEn(r.desde, r.hasta), b = budgetIn(r.desde, r.hasta), t = adsTotals(list),
@@ -2984,26 +3068,17 @@
       return h + '<div class="card"><div class="empty" style="border:0;padding:16px 8px"><h3>' +
         (S.canWrite ? "Registra la inversión en ads de este " + (resQ() ? "trimestre" : "mes") : "Sin inversión en ads en este periodo") +
         "</h3><p>" + (S.canWrite
-          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula el saldo y el costo por clic a WhatsApp."
-          : "Aquí verás el presupuesto de publicidad, lo gastado y los resultados de cada post impulsado.") + "</p>" +
+          ? "Define el presupuesto que aprobó el cliente y registra cada post impulsado con lo gastado y sus resultados. Planifica calcula cuánto costó cada clic a WhatsApp y si los ads funcionaron."
+          : "Aquí verás qué consiguieron los posts impulsados y cuánto se invirtió.") + "</p>" +
         (S.canWrite && !resQ()
           ? '<div class="acts"><button class="btn primary" type="button" data-act="budedit">Definir el presupuesto del mes</button><button class="btn" type="button" data-act="impnew">Registrar impulso</button></div>'
           : "") + "</div></div></section>";
     }
-    h += '<div class="card ads-card">' + budgetBlock(r);
-    var cpc = costPer(t.gastado, t.clics), cpcP = costPer(tp.gastado, tp.clics),
-      cpm = costPer(t.gastado, t.mensajes), cpmP = costPer(tp.gastado, tp.mensajes);
-    h += '<div class="kpis ads-kpis">' +
-      kpi("Costo por clic a WhatsApp", usdBig(cpc), deltaHtml(cpc, cpcP, r.etiqueta, true),
-        t.clics != null ? fmtNum(t.clics) + " clics" : "Anota los clics de cada impulso.") +
-      kpi("Costo por mensaje", usdBig(cpm), deltaHtml(cpm, cpmP, r.etiqueta, true),
-        t.mensajes != null ? fmtNum(t.mensajes) + " mensajes" : "") +
-      kpi("Alcance pagado", t.alcance != null ? fmtNum(t.alcance) : "–", "",
-        t.alcance ? fmtUsd(t.gastado / t.alcance * 1000) + " por cada mil cuentas" : "") +
-      kpi("Posts impulsados", fmtNum(t.n), "", t.seguidores != null ? sgnNum(t.seguidores) + " seguidores con los impulsos" : "") +
-      "</div></div>";
+    // 1) ¿Funcionó? · 2) qué consiguió cada impulso · 3) el presupuesto · 4) la tendencia
+    var v = list.length ? adsVerdict(r, list, t, tp) : null;
+    if (v) h += '<div class="card">' + v.html + "</div>";
     if (list.length) {
-      var sk = S.impSort || "fecha";
+      var sk = S.impSort || "costo";
       list = list.slice().sort(function (a, c) {
         if (sk === "costo") {
           var ca = costPer(a.gastado, (a.resultados || {}).clics), cc = costPer(c.gastado, (c.resultados || {}).clics);
@@ -3011,15 +3086,17 @@
         }
         return c.inicio.localeCompare(a.inicio);
       });
-      h += '<div class="card"><div class="card-h"><h3>Posts impulsados</h3><div class="seg" role="group" aria-label="Ordenar por">' +
-        [["fecha", "Fecha"], ["costo", "Costo por clic"]].map(function (x) {
+      h += '<div class="card"><div class="card-h"><h3>Qué consiguió cada impulso</h3><div class="seg" role="group" aria-label="Ordenar por">' +
+        [["costo", "Costo por clic"], ["fecha", "Fecha"]].map(function (x) {
           return '<button type="button" data-act="impsort" data-v="' + x[0] + '" aria-pressed="' + (sk === x[0]) + '">' + x[1] + "</button>";
-        }).join("") + '</div></div><div class="imps">' + list.map(impCard).join("") + "</div></div>";
+        }).join("") + '</div></div><div class="imps">' + list.map(function (i) {
+          return impCard(i, v && v.best === i.id);
+        }).join("") + "</div></div>";
     }
-    h += adsHistory(r);
+    h += budgetBlock(r) + adsHistory(r);
     return h + "</section>";
   }
-  /** Últimos 6 meses: presupuesto contra gastado y costo por clic a WhatsApp. */
+  /** Últimos 6 meses: cuántos clics a WhatsApp dio cada mes y a qué costo (y lo invertido, en pequeño). */
   function adsHistory(r) {
     var end = dateObj(r.hasta), rows = [], max = 0;
     for (var k = 5; k >= 0; k--) {
@@ -3029,18 +3106,20 @@
         rows.push({ m: d.getMonth(), vacio: true });
         continue;
       }
-      max = Math.max(max, b || 0, t.gastado);
-      rows.push({ m: d.getMonth(), b: b, g: t.gastado, cpc: costPer(t.gastado, t.clics) });
+      max = Math.max(max, t.clics || 0);
+      rows.push({ m: d.getMonth(), b: b, g: t.gastado, c: t.clics, cpc: costPer(t.gastado, t.clics) });
     }
-    if (!max) return "";
-    return '<div class="card"><h3>Últimos 6 meses</h3><div class="hist">' + rows.map(function (x) {
-      if (x.vacio) return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><span class="mut">Sin inversión</span></div>';
-      return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><div class="hbar"><i class="hb-b" style="width:' +
-        ((x.b || 0) / max * 100).toFixed(1) + '%"></i><i class="hb-g' + (x.b != null && x.g > x.b ? " over" : "") + '" style="width:' +
-        (x.g / max * 100).toFixed(1) + '%"></i></div><span class="hv">' + esc(fmtUsd(x.g)) +
-        (x.b != null ? ' <span class="mut">de ' + esc(fmtUsd(x.b)) + "</span>" : "") + "</span>" +
-        '<span class="hc">' + (x.cpc != null ? esc(fmtUsd(x.cpc)) + " por clic" : "") + "</span></div>";
-    }).join("") + '</div><p class="hint" style="min-height:0"><span><i class="hk hk-b"></i> presupuesto <i class="hk hk-g"></i> gastado</span></p></div>';
+    if (rows.every(function (x) {
+      return x.vacio;
+    })) return "";
+    return '<div class="card"><h3>Cómo vienen los últimos 6 meses</h3><div class="hist">' + rows.map(function (x) {
+      if (x.vacio) return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><span class="mut">Sin ads</span></div>';
+      return '<div class="hrow"><span class="hm-m">' + cap(MON3[x.m]) + '</span><div class="hbar"><i class="hb-c" style="width:' +
+        (max ? (x.c || 0) / max * 100 : 0).toFixed(1) + '%"></i></div><span class="hv">' +
+        (x.c != null ? fmtNum(x.c) + " clics" : '<span class="mut">sin clics</span>') +
+        (x.cpc != null ? ' <span class="mut">· ' + esc(fmtUsd(x.cpc)) + " c/u</span>" : "") + "</span>" +
+        '<span class="hc">' + esc(fmtUsd(x.g)) + (x.b != null ? " de " + esc(fmtUsd(x.b)) : "") + "</span></div>";
+    }).join("") + "</div></div>";
   }
 
   /* Ventana para registrar o editar un impulso (un post de la parrilla impulsado en Meta). */
@@ -3205,7 +3284,9 @@
     }
     return h + '<div class="imps">' + list.slice().sort(function (a, b) {
       return b.inicio.localeCompare(a.inicio);
-    }).map(impCard).join("") + "</div>";
+    }).map(function (i) {
+      return impCard(i);
+    }).join("") + "</div>";
   }
   function paintAds(p) {
     var card = $("#adsCard");

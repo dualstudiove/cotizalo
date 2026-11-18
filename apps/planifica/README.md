@@ -67,7 +67,7 @@ En **Rendimiento → Ads** el equipo registra la inversión en publicidad de cad
 
 - **Presupuesto del mes:** el monto que aprobó el cliente, con una nota opcional. Planifica muestra lo invertido y el saldo, avisa al pasar el 80 % y marca en rojo si se pasa.
 - **Impulsos:** cada post de la parrilla que se impulsa en Meta, con fechas, monto gastado, objetivo y los resultados que da Meta (alcance, clics a WhatsApp, mensajes, visitas al perfil, seguidores). El gasto cuenta en el mes en que empezó el impulso.
-- **Cálculos:** costo por clic a WhatsApp (el resultado principal), costo por mensaje, alcance pagado y los últimos 6 meses. Los posts impulsados llevan la marca «Impulsado» en la Lista, el Calendario y Top posts, y su detalle muestra lo pagado al lado de lo orgánico.
+- **¿Funcionó?:** la sección empieza por un veredicto. El resultado principal son los clics a WhatsApp; se compara su costo con el periodo anterior (o con el promedio de los meses anteriores): 10 % o más barato = «Funcionó», 10 % o más caro = «Por mejorar», en medio = «Estable». Dice cuál impulso rindió mejor y cuál menos. Después vienen los resultados de cada impulso, el presupuesto y los últimos 6 meses. Los posts impulsados llevan la marca «Impulsado» en la Lista, el Calendario y Top posts, y su detalle muestra lo pagado al lado de lo orgánico.
 - **Por ahora es manual** (`src/ads.js`, tablas `ads_presupuestos` y `ads_impulsos`). Las columnas `origen` y `meta_ad_id` dejan listo leerlo desde Meta Ads más adelante.
 
 Rendimiento está organizado en secciones (Resumen, Objetivos, Ads, Contenido y Audiencia) con un índice arriba.
