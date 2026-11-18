@@ -20,6 +20,7 @@ export { presupuesto, SinPresupuesto } from "./instagram.js";
 
 const DIA = 86_400_000;
 export const FRENO_MANUAL_MS = 15 * 60_000;
+const DIAS_NETOS_POR_VEZ = 6; // días de seguidores netos que se piden en cada actualización
 export const PRESUPUESTO_EJECUCION = 45; // de las 50 llamadas externas que permite el plan gratuito
 const RENOVAR_ANTES = 10 * DIA; // el token de Instagram dura 60 días; se renueva cuando le quedan menos de 10
 const PAGINAS_MAX = 4; // para encontrar un link se revisan como mucho 200 publicaciones de la cuenta
@@ -216,11 +217,27 @@ async function pasoCuenta(p, con, token) {
   } catch (e) {
     if (!(e instanceof ig.ErrorRed) || e.token) throw e; // sin permiso de métricas: el resto sigue
   }
-  // Seguidores nuevos de cada uno de los últimos 30 días (así se llena el historial apenas se conecta).
+  // Seguidores netos (los que siguieron menos los que dejaron de seguir) de cada día de los últimos 30: Meta los da
+  // un día por llamada, así que en cada actualización se pide ayer y unos cuantos días que falten, del más reciente
+  // hacia atrás, hasta completar el mes.
   try {
-    const nuevos = await ig.seguidoresNuevos(p, token, con.cuenta_id, inicioDia(sumarDias(dia, -29)), inicioDia(dia));
-    for (const x of nuevos) {
-      if (x.dia < dia) await guardarDiaCuenta(con.cliente_id, "ig", x.dia, { datos: { nuevos: x.n } });
+    const hechos = new Set(
+      (
+        await db.all(
+          `SELECT dia FROM redes_cuenta_dia WHERE cliente_id = ? AND red = 'ig' AND dia >= ?
+             AND json_extract(datos, '$.neto') IS NOT NULL`,
+          [con.cliente_id, sumarDias(dia, -30)],
+        )
+      ).map((f) => f.dia),
+    );
+    let n = 0;
+    for (let k = 1; k <= 30 && n < DIAS_NETOS_POR_VEZ; k++) {
+      const d = sumarDias(dia, -k);
+      if (hechos.has(d) && k > 1) continue;
+      n++;
+      const x = await ig.seguidoresDelDia(p, token, con.cuenta_id, inicioDia(d), inicioDia(sumarDias(d, 1)));
+      if (!x) break;
+      await guardarDiaCuenta(con.cliente_id, "ig", d, { datos: x });
     }
   } catch (e) {
     if (!(e instanceof ig.ErrorRed) || e.token) throw e; // menos de 100 seguidores o sin permiso: el resto sigue

@@ -65,12 +65,13 @@ before(() => {
       if (url.searchParams.get("metric") === "online_followers") {
         return respuesta({ data: [{ name: "online_followers", values: [{ value: { 0: 10, 12: 50 }, end_time: "2026-11-16T08:00:00+0000" }] }] });
       }
-      if (url.searchParams.get("metric") === "follower_count") {
+      if (url.searchParams.get("metric") === "follows_and_unfollows") {
+        const dia = Number(url.searchParams.get("since"));
         return respuesta({
-          data: [{ name: "follower_count", values: [
-            { value: 7, end_time: "2020-03-02T08:00:00+0000" },
-            { value: 4, end_time: "2020-03-03T08:00:00+0000" },
-          ] }],
+          data: [{ name: "follows_and_unfollows", total_value: { breakdowns: [{ dimension_keys: ["follow_type"], results: [
+            { dimension_values: ["FOLLOWER"], value: 9 + (dia % 2) },
+            { dimension_values: ["NON_FOLLOWER"], value: 3 },
+          ] }] } }],
         });
       }
       return respuesta({
@@ -256,9 +257,10 @@ test("resultados: cifras diarias del periodo, para cualquiera con acceso", async
   assert.equal(r.status, 200);
   assert.ok(r.json.dias.some((d) => d.alcance === 3000));
   assert.ok(r.json.dias.some((d) => d.seguidores === 1250));
-  // seguidores nuevos por día (follower_count), con el día del Pacífico al que corresponde
-  assert.equal(r.json.dias.find((d) => d.dia === "2020-03-01")?.nuevos, 7);
-  assert.equal(r.json.dias.find((d) => d.dia === "2020-03-02")?.nuevos, 4);
+  // seguidores netos por día: los que siguieron menos los que dejaron de seguir
+  const conNeto = r.json.dias.filter((d) => d.neto != null);
+  assert.ok(conNeto.length >= 1);
+  for (const d of conNeto) assert.equal(d.neto, d.siguieron - d.dejaron);
   assert.equal(r.json.audiencia.length, 7);
   assert.equal((await lectora("/laboratorio-rh/api/resultados?red=ig&desde=x&hasta=y")).status, 400);
 });

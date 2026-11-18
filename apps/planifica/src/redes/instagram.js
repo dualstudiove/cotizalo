@@ -217,28 +217,34 @@ export async function audiencia(p, token, cuentaId) {
 }
 
 /**
- * Seguidores nuevos por día (follower_count): [{ dia: "AAAA-MM-DD", n }]. Meta lo da para los últimos 30 días y
- * solo a cuentas con 100 seguidores o más. end_time es el final del día (del Pacífico) al que corresponde el valor.
+ * Seguidores de un día (follows_and_unfollows): { siguieron, dejaron, neto } entre desde y hasta (segundos).
+ * Meta lo da para los últimos 30 días y solo a cuentas con 100 seguidores o más.
  */
-export async function seguidoresNuevos(p, token, cuentaId, desde, hasta) {
+export async function seguidoresDelDia(p, token, cuentaId, desde, hasta) {
   const j = await pedir(p, `/${cuentaId}/insights`, {
-    metric: "follower_count",
+    metric: "follows_and_unfollows",
     period: "day",
+    metric_type: "total_value",
+    breakdown: "follow_type",
     since: desde,
     until: hasta,
     access_token: token,
   });
-  const out = [];
-  const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
+  let siguieron = 0, dejaron = 0, hay = false;
   for (const d of j.data || []) {
-    if (d.name !== "follower_count") continue;
-    for (const v of d.values || []) {
-      const fin = Date.parse(v?.end_time);
-      if (!Number.isFinite(fin) || !Number.isFinite(v.value)) continue;
-      out.push({ dia: fecha.format(new Date(fin - 1)), n: v.value });
+    if (d.name !== "follows_and_unfollows") continue;
+    for (const b of d.total_value?.breakdowns || []) {
+      for (const x of b.results || []) {
+        if (!Number.isFinite(x?.value)) continue;
+        const tipo = String(x.dimension_values?.[0] || "").toUpperCase();
+        if (tipo === "FOLLOWER") siguieron += x.value;
+        else if (tipo === "NON_FOLLOWER") dejaron += x.value;
+        else continue;
+        hay = true;
+      }
     }
   }
-  return out;
+  return hay ? { siguieron, dejaron, neto: siguieron - dejaron } : null;
 }
 
 /** Instante (ms) del inicio del día, en la hora del Pacífico, que contiene a `ms`. */
