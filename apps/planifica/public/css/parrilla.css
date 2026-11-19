@@ -2123,6 +2123,92 @@
     box-shadow: 0 0 0 1.5px currentColor;
   }
 
+  /* Selector rápido de clientes */
+  .cli-pop {
+    position: fixed;
+    z-index: 60;
+    width: 280px;
+    max-width: calc(100vw - 16px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow-pop);
+  }
+  .cli-pop .cp-q {
+    margin: 2px 2px 4px;
+    width: auto;
+  }
+  .cli-pop .cp-list {
+    display: flex;
+    flex-direction: column;
+    max-height: min(360px, 60vh);
+    overflow-y: auto;
+  }
+  .cli-pop .cp-it {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .cli-pop .cp-it[hidden] {
+    display: none;
+  }
+  .cli-pop .cp-it b {
+    font-size: 14px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cli-pop .cp-it span {
+    grid-column: 1;
+    font-size: 12px;
+    color: var(--ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cli-pop .cp-it i {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    font-style: normal;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .cli-pop .cp-it:hover,
+  .cli-pop .cp-it:focus-visible {
+    background: var(--surface-2);
+    outline: none;
+  }
+  .cli-pop .cp-it[aria-current="page"] {
+    background: var(--accent-bg);
+  }
+  .cli-pop .cp-vacio {
+    margin: 6px 10px;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .cli-pop .cp-todos {
+    border-top: 1px solid var(--line-2);
+    margin-top: 2px;
+    padding: 8px 10px 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .cli-pop .cp-todos:hover {
+    text-decoration: underline;
+  }
+
   /* Publicados: más tenues */
   .row.pub,
   .chip.pub {

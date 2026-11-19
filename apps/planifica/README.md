@@ -49,6 +49,8 @@ Un cliente sin acceso responde como si no existiera, y ninguna consulta cruza cl
   - Hoy se guardan en D1. Para pasarlas a otro sitio (por ejemplo Google Drive, una carpeta por cliente) se añade un almacén en `src/almacen.js`; el resto de la app no cambia. Para Drive hará falta conectar una cuenta de Google.
 - **Topes diarios por cliente**, guardados en la base: 5 000 cambios y 200 imágenes. Frenan un uso desbocado antes de que agote la cuota gratuita de la cuenta.
 
+**Cambiar de cliente:** en la parrilla, el nombre del cliente con las flechitas abre una lista para saltar a otro cliente sin volver al inicio (se queda en la misma pestaña: Rendimiento, Lista…); con más de 6 clientes trae un buscador. El logo sigue llevando al inicio.
+
 ## Métricas de Instagram
 
 Planifica trae las métricas de la cuenta de Instagram de cada cliente y las muestra en cada post, en la pestaña **Rendimiento** y en **Objetivos**.
